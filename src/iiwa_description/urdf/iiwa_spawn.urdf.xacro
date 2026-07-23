@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<robot name="kuka_iiwa" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- 1. Import the KUKA iiwa recipe book -->
+  <xacro:include filename="$(find iiwa_description)/urdf/iiwa.urdf.xacro"/>
+
+  <!-- 2. Create a virtual floor (world) to anchor the robot -->
+  <link name="world"/>
+
+  <!-- 3. Call the macro to build the arm and attach it to the world -->
+  <xacro:iiwa parent="world" prefix="">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:iiwa>
+
+</robot>

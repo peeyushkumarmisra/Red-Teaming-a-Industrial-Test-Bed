@@ -1,0 +1,14 @@
+# ROS 2 build folders
+build/
+install/
+log/
+
+# VS Code settings
+.vscode/
+
+# Python caches
+__pycache__/
+*.pyc
+
+# OS generated files
+.DS_Store
