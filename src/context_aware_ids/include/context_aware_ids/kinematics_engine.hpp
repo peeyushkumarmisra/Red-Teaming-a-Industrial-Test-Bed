@@ -19,45 +19,52 @@ public:
     using StateMatrix = Eigen::Matrix<double, STATE_SIZE, STATE_SIZE>;
     using JointVector = Eigen::Matrix<double, DOF, 1>;
 
-    explicit KinematicsEngine (const std::string& urdf_path)
+    KinematicsEngine (const std::string& urdf_path)
     {
-        model_ = new RigidBodyDynamics::Model();   // Initialize the Rigid Body Dynamics model
+        model_ = std::make_unique<RigidBodyDynamics::Model>();   // Initialize the Rigid Body Dynamics model
         model_->gravity = RigidBodyDynamics::Math::Vector3d(0.0, 0.0, -9.81);   // Gravity
         
         // URDF model loading
-        bool model_loaded = RigidBodyDynamics::Addons::URDFReadFromFile(urdf_path.c_str(), model_, false);
+        bool model_loaded = RigidBodyDynamics::Addons::URDFReadFromFile(urdf_path.c_str(), model_.get(), false);
         if (!model_loaded)
         {
             throw std::runtime_error("Critical Error - URDF is not uploaded");
         }
 
         end_id_ = model_->GetBodyId("link_7");  // to get id of end effector link
-        end_inertia_ = model_->I[end_id_];       // Manipulator inertia
+        end_inertia_ = model_->I[end_id_];      // Manipulator inertia
+        
+        // First Time Build
+        payload_inertia_ = RigidBodyDynamics::Math::SpatialRigidBodyInertia(
+            5.0, 
+            RigidBodyDynamics::Math::Vector3d(0.0, 0.0, 0.05), 
+            RigidBodyDynamics::Math::Matrix3d::Identity() * 0.01
+        );
     }
 
-    ~KinematicsEngine(){    delete model_;  }    // Destructor (preventing memory leaks)
+    StateVector predict_state(const StateVector& x, const JointVector& tau, double dt)
+    {
+        RigidBodyDynamics::Math::VectorNd q = x.head(DOF);
+        RigidBodyDynamics::Math::VectorNd qdot = x.tail(DOF);
+        RigidBodyDynamics::Math::VectorNd qddot = RigidBodyDynamics::Math::VectorNd::Zero(DOF);
+        
+        RigidBodyDynamics::ForwardDynamics(*model_, q, qdot, tau, qddot);
+        
+        StateVector x_pred;
+        x_pred.head(DOF) = q + (dt * qdot);
+        x_pred.tail(DOF) = qdot + (dt * qddot);
+        return x_pred;
+    }
 
     // Updating Inertia of End-Effector in fast memory without reloading URDF
-    inline void apply_payload_context(int payload_context)
+    inline void apply_payload_context(int context)
     {
-        if (payload_context == 1)   // 5kg paylaod + last link inertia 
-        {
-            RigidBodyDynamics::Math::Matrix3d block_inertia;
-            block_inertia << 0.008333, 0.0, 0.0,      0.0, 0.008333, 0.0,     0.0, 0.0, 0.008333; // Cube Tensor
-            RigidBodyDynamics::Math::SpatialRigidBodyInertia payload_inertia 
-            (
-                5.0,     // Mass
-                RigidBodyDynamics::Math::Vector3d(0.0, 0.0, 0.154),     // CoM at tip
-                block_inertia       // 3x3 Inertia Tensor
-            );
-            model_->I[end_id_] = end_inertia_ + payload_inertia;
-        } 
-        else 
-        {
+        if (context == 1) {
+            model_->I[end_id_] = payload_inertia_;
+        } else {
             model_->I[end_id_] = end_inertia_;
         }
     }
-
 
     /**
      * @brief Calculates the exact State Transition Jacobian (tj) using true physics.
@@ -70,35 +77,27 @@ public:
         double dt
     )
     {
-        StateMatrix tj = StateMatrix::Identity();
-
-
         RigidBodyDynamics::Math::VectorNd q = current_state.head(DOF);
         RigidBodyDynamics::Math::VectorNd qdot = current_state.tail(DOF);
-        RigidBodyDynamics::Math::VectorNd tau = joint_torques;
         RigidBodyDynamics::Math::VectorNd qddot(DOF);
         qddot.setZero();
 
         // For finding Joint Accelerations (qqdot)
         RigidBodyDynamics::ForwardDynamics(*model_, q, qdot, joint_torques, qddot);
-
-        // Mapping the non-linear dynamics into the linear EKF Jacobian (tj)
-        for (size_t i = 0; i< DOF; ++i) // Position changes by velocity
-        {   tj(i, i+DOF) = dt;  }
-
-        for (size_t i = 0; i< DOF; ++i) // Velocity changes by acceleration
+        end_id_ = model_->GetBodyId("link_7");
+        StateMatrix F = StateMatrix::Identity();
+        for (size_t i = 0; i < DOF; ++i)
         {
-            tj(i + DOF, i) = qddot(i) * dt;
-            tj(i + DOF, i + DOF) = 1.0;
+            F(i, i + DOF) = dt; 
+            F(i + DOF, i) = qddot[i] * dt; // Rough covariance approx
         }
-
-        return tj;
+        return F;
     }
 private:
-    RigidBodyDynamics::Model* model_;
+    std::unique_ptr<RigidBodyDynamics::Model> model_;
     unsigned int end_id_;
     RigidBodyDynamics::Math::SpatialRigidBodyInertia end_inertia_;
+    RigidBodyDynamics::Math::SpatialRigidBodyInertia payload_inertia_;
 };
-
 }   // namespace context_aware_ids
 #endif // CONTEXT_AWARE_IDS_KINEMATICS_ENGINE_HPP_

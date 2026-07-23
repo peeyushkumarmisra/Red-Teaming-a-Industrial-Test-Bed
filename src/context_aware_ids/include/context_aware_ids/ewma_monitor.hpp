@@ -37,21 +37,23 @@ public:
     [[nodiscard]] inline bool evaluate_anomaly(const MeasurementVector& residual, int payload_context)
     {
         Sk_ = (alpha_ * residual) + ((1.0 - alpha_) * Sk_);   // EWMA Smoothing
-        double curr_limit = (payload_context == 1) ? loaded_limit_ : base_limit_;   // Context Switching
+        curr_limit_ = (payload_context == 1) ? loaded_limit_ : base_limit_;   // Context Switching
         // THE ALARM
-        if (Sk_.norm() > curr_limit)     // L2 Norm of 7-joint error vector.
+        if (Sk_.norm() > curr_limit_)     // L2 Norm of 7-joint error vector.
         {
             return true;    // Blow alarm
         }
         return false;       // Normal operations
     }
+
+    inline double get_ewma_norm() const {   return Sk_.norm();  }
+    inline double get_active_limit() const {    return curr_limit_;  }
 private:
     double alpha_;             // Weight given to the newest data (alpha)
     double base_limit_;          // Threshold for bare manipulator (Th_0)
     double loaded_limit_;       // Threshold for loaded manipulator (Th_1)
+    double curr_limit_;
     MeasurementVector Sk_;      // The smoothed error vector in fast memory
-
-
 };
 } // namespace context_aware_ids
 #endif // CONTEXT_AWARE_IDS_EWMA_MONITOR_HPP_

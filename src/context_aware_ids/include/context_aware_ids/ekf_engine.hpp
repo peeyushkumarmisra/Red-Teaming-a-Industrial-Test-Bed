@@ -50,24 +50,23 @@ public:
   // 'inline' suggests the compiler should paste this code directly where it's called
   [[nodiscard]] inline MeasurementVector compute_residual
   (
-    const MeasurementVector& z_actual,
+    const MeasurementVector& incoming_positions,
     const JointVector& incoming_torques,
-    int payload_context
+    int payload_context,
+    double dt
   )
   {
-    const double dt = 0.001; // 1000 Hz loop time
     physics_engine_->apply_payload_context(payload_context); // Weather it is loaded or not
+    isp_ = physics_engine_->predict_state(isp_, incoming_torques, dt);
     tj_ = physics_engine_->calc_true_jacobian(isp_, incoming_torques, dt); // Calculates true jacobian
-    isp_ = tj_ * isp_;   // Predicting the state head using the physical kinematic model
     ic_ = (tj_ * ic_ * tj_.transpose()) + pm_;   // Error Covariance
-    MeasurementVector z_pred = om_ * isp_;    // Expected Sensor Measurements
-    MeasurementVector residual = z_actual - z_pred;   // Innovation Residual
+    MeasurementVector z_pred = MeasurementVector::Zero();    // Expected Sensor Measurements
+    z_pred.head(DOF) = isp_.head(DOF);
+    MeasurementVector residual = incoming_positions - z_pred.head(DOF);   // Innovation Residual
     
-    MeasurementNoiseMatrix S = (om_ * ic_ * om_.transpose()) + mn_;   // Innovation Covariance (S)
-    Eigen::Matrix<double, STATE_SIZE, DOF> K = ic_ * om_.transpose() *S.inverse();   // Kalman Gain (K)
-    isp_ = isp_ + (K*residual);   // Correct the internal state
-    StateMatrix I = StateMatrix::Identity();
-    ic_ = (I - (K*om_)) * ic_;   // Correct the covariance
+    auto K = ic_ * om_.transpose() * (om_ * ic_ * om_.transpose() + mn_).inverse();
+        isp_ = isp_ + K * residual;
+        ic_ = (StateMatrix::Identity() - K * om_) * ic_;
     
     return residual;
   }

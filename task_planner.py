@@ -35,7 +35,9 @@ class TaskPlanner(Node):
             target_orientation=target_orientation,
             orientation_mode="Z"
         )
-        return ik_sol[3:10].tolist()
+        joint_angles = ik_sol[3:10].tolist() # joints 0,1,2 and 7 are fixed 3- 9 are reveloute
+        return joint_angles
+
     
     def move_arm(self, target_pos, durr_sec=5):
         traj_msg = JointTrajectory()
@@ -122,7 +124,7 @@ class TaskPlanner(Node):
         # Without Payload
         self.publish_context(0)
         self.get_logger().info("Arm is moving back to Sources...")
-        hover_angles = self.calc_ik(0.5,0.0,0.25)
+        hover_angles = self.calc_ik(0.6,0.0,0.25)
         self.move_arm(hover_angles, 4)
         time.sleep(4.5)
         self.get_logger().info("Grabbing cube")

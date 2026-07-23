@@ -298,8 +298,8 @@
       <parent_link>link_7</parent_link>
       <child_model>payload</child_model>
       <child_link>cube_link</child_link>
-      <attach_topic>/grriper/attach</attach_topic>
-      <detach_topic>/grriper/detach</detach_topic>
+      <attach_topic>/gripper/attach</attach_topic>
+      <detach_topic>/gripper/detach</detach_topic>
     </plugin>
   </gazebo>
 </robot>

@@ -1,5 +1,6 @@
 #include "context_aware_ids/ids_node.hpp"
 #include <chrono>
+#include <vector>
 
 using namespace std::chrono_literals;
 
@@ -9,7 +10,9 @@ namespace context_aware_ids
 IDSNode::IDSNode() 
     : Node("ids_node"),
     data_received_(false),
-    current_payload_context_(0)
+    current_payload_context_(0),
+    time_step_(0),
+    expected_joint_names_({"joint_a1", "joint_a2", "joint_a3", "joint_a4", "joint_a5", "joint_a6", "joint_a7"})
 {
     // Initializing our memory caches
     latest_positions_.setZero();
@@ -18,7 +21,7 @@ IDSNode::IDSNode()
     // Declaring ROS 2 Parameters 
     this->declare_parameter<std::string>(
         "urdf_path",
-        "/workspaces/thesis/install/iiwa_description/share/iiwa_description/urdf/iiwa.urdf"
+        "/workspaces/thesis/iiwa.urdf"
     );
     std::string active_urdf_path = this->get_parameter("urdf_path").as_string();
 
@@ -37,8 +40,17 @@ IDSNode::IDSNode()
         "/task_context", 10, std::bind(&IDSNode::task_context_callback, this, std::placeholders::_1)
     );
     alarm_pub_ = this->create_publisher<std_msgs::msg::Bool>("/ids_alarm", 10);
-    timer_ = this->create_wall_timer(1ms, std::bind(&IDSNode::control_loop_callback, this));
     RCLCPP_INFO(this->get_logger(), "IDS Node Successfully Initialized");
+    // For recoading the data
+    csv_file_.open("/workspaces/thesis/experiment_data.csv");
+    if (!csv_file_.is_open()) {
+        RCLCPP_ERROR(this->get_logger(), "Cannot open CSV file");
+    } else {
+        csv_file_ << "TimeStep,Residual_Norm,EWMA_Norm,Active_Threshold,Attack_Flag\n";
+        csv_file_.flush(); 
+        RCLCPP_INFO(this->get_logger(), "CSV File Successfully Created.");
+    }
+    timer_ = this->create_wall_timer(1ms, std::bind(&IDSNode::control_loop_callback, this));
 }
 
 void IDSNode::task_context_callback(const std_msgs::msg::Int8::SharedPtr msg)
@@ -48,30 +60,55 @@ void IDSNode::task_context_callback(const std_msgs::msg::Int8::SharedPtr msg)
 
 void IDSNode::joint_state_callback(const sensor_msgs::msg::JointState::SharedPtr msg)
 {
-    if (msg->position.size() >= 7 && msg->effort.size() >= 7)
-    {
-        for (size_t i=0; i<7; ++i)
-        {
-            latest_positions_(i) = msg->position[i];
-            latest_torques_(i) = msg->effort[i];
+    // FIX: Map joints by name, not by raw index assumption
+    int matched_joints = 0;
+    for (size_t i = 0; i < msg->name.size(); ++i) {
+        for (size_t j = 0; j < 7; ++j) {
+            if (msg->name[i] == expected_joint_names_[j]) {
+                latest_positions_(j) = msg->position[i];
+                
+                if (msg->effort.size() == msg->name.size()) {
+                    latest_torques_(j) = msg->effort[i];
+                } else {
+                    latest_torques_(j) = 0.0; // See note below on 0 torque
+                }
+                matched_joints++;
+                break;
+            }
         }
-        data_received_ = true;      // Unlock the timer loop
+    }
+    if (matched_joints == 7) {
+        data_received_ = true;
     }
 }
 
 void IDSNode::control_loop_callback()
 {
     if (!data_received_)    {   return;   }
+    double dt = 0.001;
 
     // Passing Data to EKF
     auto residual = ekf_engine_->compute_residual(
         latest_positions_,
         latest_torques_,
-        current_payload_context_
+        current_payload_context_,
+        dt
     );
 
     // Now to EWMA
     bool is_attack = ewma_monitor_->evaluate_anomaly(residual, current_payload_context_);
+
+    // For Recording Data
+    double res_norm = residual.norm();
+    double ewma_norm = ewma_monitor_->get_ewma_norm();
+    double active_limit = ewma_monitor_->get_active_limit();
+    csv_file_   << time_step_ << ","
+                << res_norm << ","
+                << ewma_norm << ","
+                << active_limit << ","
+                << (is_attack ? 1:0) << "\n";
+    csv_file_.flush();
+    time_step_++;
 
     // Alarm Triger
     if (is_attack)
@@ -88,8 +125,12 @@ void IDSNode::control_loop_callback()
 int main(int argc, char * argv[])
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<context_aware_ids::IDSNode>();
-    rclcpp::spin(node);
+    try {
+        auto node = std::make_shared<context_aware_ids::IDSNode>();
+        rclcpp::spin(node);
+    } catch (const std::exception& e) {
+        RCLCPP_FATAL(rclcpp::get_logger("ids_node"), "NODE CRASHED WITH FATAL EXCEPTION: %s", e.what());
+    }
     rclcpp::shutdown();
     return 0;
 }

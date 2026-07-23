@@ -11,6 +11,7 @@
 
 #include <memory>
 #include <string>
+#include <fstream>
 
 namespace context_aware_ids
 {
@@ -41,6 +42,11 @@ private:
     Eigen::Matrix<double, 7, 1> latest_positions_;
     Eigen::Matrix<double, 7, 1> latest_torques_;
     int current_payload_context_;
+
+    // For recoading the data
+    std::ofstream csv_file_;
+    uint64_t time_step_;
+    std::vector<std::string> expected_joint_names_;
 };
 }           // namespace context_aware_ids
 #endif      // CONTEXT_AWARE_IDS_NODE_HPP_
