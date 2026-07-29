@@ -1,11 +1,13 @@
 #ifndef CONTEXT_AWARE_IDS_KINEMATICS_ENGINE_HPP_
 #define CONTEXT_AWARE_IDS_KINEMATICS_ENGINE_HPP_
 
+#include <cmath>
+#include <memory>
+#include <string>
+#include <stdexcept>
 #include <Eigen/Dense>
 #include <rbdl/rbdl.h>
 #include <rbdl/addons/urdfreader/urdfreader.h>
-#include <string>
-#include <stdexcept>
 
 namespace context_aware_ids
 {
@@ -28,12 +30,11 @@ public:
         bool model_loaded = RigidBodyDynamics::Addons::URDFReadFromFile(urdf_path.c_str(), model_.get(), false);
         if (!model_loaded)
         {
-            throw std::runtime_error("Critical Error - URDF is not uploaded");
+            throw std::runtime_error("ERROR - URDF is not uploaded");
         }
-
         end_id_ = model_->GetBodyId("link_7");  // to get id of end effector link
+        if (end_id_ != std::numeric_limits<unsigned int>::max())
         end_inertia_ = model_->I[end_id_];      // Manipulator inertia
-        
         // First Time Build
         payload_inertia_ = RigidBodyDynamics::Math::SpatialRigidBodyInertia(
             5.0, 
@@ -47,9 +48,7 @@ public:
         RigidBodyDynamics::Math::VectorNd q = x.head(DOF);
         RigidBodyDynamics::Math::VectorNd qdot = x.tail(DOF);
         RigidBodyDynamics::Math::VectorNd qddot = RigidBodyDynamics::Math::VectorNd::Zero(DOF);
-        
         RigidBodyDynamics::ForwardDynamics(*model_, q, qdot, tau, qddot);
-        
         StateVector x_pred;
         x_pred.head(DOF) = q + (dt * qdot);
         x_pred.tail(DOF) = qdot + (dt * qddot);
@@ -70,26 +69,47 @@ public:
      * @brief Calculates the exact State Transition Jacobian (tj) using true physics.
      * Evaluates M(q)*q_ddot + C(q, qdot)*qdot + g(q) = tau via the ABA algorithm.
      */
-    [[nodiscard]] inline StateMatrix calc_true_jacobian
+    [[nodiscard]] inline StateMatrix calc_jacobian
     (
         const StateVector& current_state,
         const JointVector& joint_torques,
         double dt
     )
     {
-        RigidBodyDynamics::Math::VectorNd q = current_state.head(DOF);
-        RigidBodyDynamics::Math::VectorNd qdot = current_state.tail(DOF);
-        RigidBodyDynamics::Math::VectorNd qddot(DOF);
-        qddot.setZero();
-
-        // For finding Joint Accelerations (qqdot)
+        using VectorNd  = RigidBodyDynamics::Math::VectorNd;
+        VectorNd q      = current_state.head(DOF);
+        VectorNd qdot   = current_state.tail(DOF);
+        VectorNd qddot  = VectorNd::Zero(DOF);
         RigidBodyDynamics::ForwardDynamics(*model_, q, qdot, joint_torques, qddot);
-        end_id_ = model_->GetBodyId("link_7");
-        StateMatrix F = StateMatrix::Identity();
-        for (size_t i = 0; i < DOF; ++i)
+        StateMatrix F   = StateMatrix::Zero();
+        // Upper-left:  dq_{k+1}/dq_k = I
+        F.block(0, 0, DOF, DOF)     = Eigen::Matrix<double, DOF, DOF>::Identity();
+        // Upper-right: dq_{k+1}/dqdot_k = dt * I
+        F.block(0, DOF, DOF, DOF)   = Eigen::Matrix<double, DOF, DOF>::Identity();
+        // Lower-right: dqdot_{k+1}/dqdot_k = I
+        F.block(DOF, DOF, DOF, DOF) = Eigen::Matrix<double, DOF, DOF>::Identity();
+        const double epsilon = 1e-7;
+        // Lower-left: dt * d(qddot)/dq
+        for (size_t i = 0; i<DOF; ++i)
         {
-            F(i, i + DOF) = dt; 
-            F(i + DOF, i) = qddot[i] * dt; // Rough covariance approx
+            VectorNd q_preturbed = q;
+            const double h = epsilon * std::max(1.0, std::abs(q(i)));
+            q_preturbed(i) += h;
+            VectorNd qddot_preturbed = VectorNd::Zero(DOF);
+            RigidBodyDynamics::ForwardDynamics(*model_, q_preturbed, qdot, joint_torques, qddot_preturbed);
+            VectorNd dqddot_dqi = (qddot_preturbed - qddot) / h;
+            F.block(DOF, i, DOF, 1) = dt * dqddot_dqi;
+        }
+        // Lower-right: dt * d(qddot)/dqdot
+        for (size_t i = 0; i<DOF; ++i)
+        {
+            VectorNd qdot_preturbed = qdot;
+            const double h = epsilon * std::max(1.0, std::abs(qdot(i)));
+            qdot_preturbed(i) += h;
+            VectorNd qddot_preturbed = VectorNd::Zero(DOF);
+            RigidBodyDynamics::ForwardDynamics(*model_, q, qdot_preturbed, joint_torques, qddot_preturbed);
+            VectorNd dqddot_dqdoti = (qddot_preturbed - qddot) / h;
+            F.block(DOF, DOF+i, DOF, 1) = dt * dqddot_dqdoti;
         }
         return F;
     }

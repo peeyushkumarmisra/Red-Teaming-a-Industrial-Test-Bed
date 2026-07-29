@@ -5,6 +5,7 @@ import random
 import subprocess
 import ikpy.chain
 import numpy as np
+import threading
 from rclpy.node import Node
 from std_msgs.msg import Int8
 from builtin_interfaces.msg import Duration
@@ -23,9 +24,13 @@ class TaskPlanner(Node):
         self.arm_chain = ikpy.chain.Chain.from_urdf_file(
             "/workspaces/thesis/iiwa.urdf",
             base_elements=["world"])
+        self.is_first_spawn = True # Tto track the first spawn
         # Expriment loop
-        self.timer = self.create_timer(20.0, self.exp_loop)
         self.arm_ = self.create_publisher(JointTrajectory, '/iiwa_arm_controller/joint_trajectory', 10)
+        # Threading It
+        self.loop_thread = threading.Thread(target=self.exp_loop)
+        self.loop_thread.daemon = True
+        self.loop_thread.start()
 
     def calc_ik(self, x, y, z):
         target_position = [x, y, z]
@@ -110,10 +115,15 @@ class TaskPlanner(Node):
         with open(file_path, "w") as f:
             f.write(sdf_content)
         # Removing the old playload
-        subprocess.run(
-            "gz service -s /world/empty/remove --reqtype gz.msgs.Entity --reptype gz.msgs.Boolean --req 'name: \"payload\", type: MODEL'",
-            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
+        if self.is_first_spawn:
+            self.get_logger().info("First run: Skipping payload removal.")
+            self.is_first_spawn = False
+        else:
+            subprocess.run(
+                "gz service -s /world/empty/remove --reqtype gz.msgs.Entity --reptype gz.msgs.Boolean --req 'name: \"payload\", type: MODEL'",
+                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        time.sleep(0.5)
         # Appearing the new payload
         subprocess.run(
             f"gz service -s /world/empty/create --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --req 'sdf_filename: \"{file_path}\", name: \"payload\"'",
@@ -121,40 +131,42 @@ class TaskPlanner(Node):
         )
 
     def exp_loop(self):
-        # Without Payload
-        self.publish_context(0)
-        self.get_logger().info("Arm is moving back to Sources...")
-        hover_angles = self.calc_ik(0.6,0.0,0.25)
-        self.move_arm(hover_angles, 4)
-        time.sleep(4.5)
-        self.get_logger().info("Grabbing cube")
-        grab_anlges = self.calc_ik(0.5,0.0,0.10)
-        self.move_arm(grab_anlges, 2)
-        time.sleep(2.5)
-        self.grab_cube()
-        time.sleep(0.5)
-        # With Payload
-        self.publish_context(1)
-        self.get_logger().info("Lifting cube...")
-        self.move_arm(hover_angles, 2)
-        time.sleep(2.5)
-        self.get_logger().info("Arm is moving to Destination...")
-        dest_angles = self.calc_ik(0.0, 0.5, 0.25)
-        self.move_arm(dest_angles, 4)
-        time.sleep(4.5)
-        self.get_logger().info("Lowering to floor...")
-        drop_angles = self.calc_ik(0.0, 0.5, 0.10)
-        self.move_arm(drop_angles, 2)
-        time.sleep(2.5)
-        self.drop_cube()
-        time.sleep(0.5)
-        # Drop
-        self.publish_context(0)
-        self.get_logger().info("Arm dropped the Payload...")
-        self.move_arm([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        time.sleep(5.5)
-        # Respawing
-        self.generate_payload_spawn()
+        time.sleep(3.0) # Moment to initialize before looping
+        while rclpy.ok():
+            # Without Payload
+            self.publish_context(0)
+            self.get_logger().info("Arm is moving back to Sources...")
+            hover_angles = self.calc_ik(0.6,0.0,0.25)
+            self.move_arm(hover_angles, 4)
+            time.sleep(4.5)
+            self.get_logger().info("Grabbing cube")
+            grab_anlges = self.calc_ik(0.5,0.0,0.10)
+            self.move_arm(grab_anlges, 2)
+            time.sleep(2.5)
+            self.grab_cube()
+            time.sleep(0.5)
+            # With Payload
+            self.publish_context(1)
+            self.get_logger().info("Lifting cube...")
+            self.move_arm(hover_angles, 2)
+            time.sleep(2.5)
+            self.get_logger().info("Arm is moving to Destination...")
+            dest_angles = self.calc_ik(0.0, 0.5, 0.25)
+            self.move_arm(dest_angles, 4)
+            time.sleep(4.5)
+            self.get_logger().info("Lowering to floor...")
+            drop_angles = self.calc_ik(0.0, 0.5, 0.10)
+            self.move_arm(drop_angles, 2)
+            time.sleep(2.5)
+            self.drop_cube()
+            time.sleep(0.5)
+            # Drop
+            self.publish_context(0)
+            self.get_logger().info("Arm dropped the Payload...")
+            self.move_arm([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            time.sleep(5.5)
+            # Respawing
+            self.generate_payload_spawn()
 
     def publish_context(self, val):
         msg = Int8()

@@ -5,6 +5,7 @@ log/
 
 # VS Code settings
 .vscode/
+.venv
 
 # Python caches
 __pycache__/
@@ -12,3 +13,4 @@ __pycache__/
 
 # OS generated files
 .DS_Store
+.csv

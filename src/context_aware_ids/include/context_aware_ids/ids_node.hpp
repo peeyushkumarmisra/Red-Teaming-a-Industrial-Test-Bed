@@ -2,15 +2,17 @@
 #define CONTEXT_AWARE_IDS_NODE_HPP_
 
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/int8.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 
 #include "context_aware_ids/ekf_engine.hpp"
 #include "context_aware_ids/ewma_monitor.hpp"
 
 #include <memory>
 #include <string>
+#include <chrono>
+#include <vector>
 #include <fstream>
 
 namespace context_aware_ids
@@ -26,7 +28,8 @@ private:
     // Async network callback
     void task_context_callback(const std_msgs::msg::Int8::SharedPtr msg);
     void joint_state_callback(const sensor_msgs::msg::JointState::SharedPtr msg);
-    bool data_received_;
+    bool data_received_{false};
+    int current_payload_context_{0};
 
     // ROS2 Communication Interface
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_sub_;
@@ -39,14 +42,18 @@ private:
     std::unique_ptr<EWMAMonitor<7>> ewma_monitor_;
 
     // High-speed memory caches to hold data between network messages and the timer
-    Eigen::Matrix<double, 7, 1> latest_positions_;
-    Eigen::Matrix<double, 7, 1> latest_torques_;
-    int current_payload_context_;
+    Eigen::Matrix<double, 7, 1> latest_positions_   = Eigen::Matrix<double, 7, 1>::Zero();
+    Eigen::Matrix<double, 7, 1> latest_torques_     = Eigen::Matrix<double, 7, 1>::Zero();
 
     // For recoading the data
     std::ofstream csv_file_;
-    uint64_t time_step_;
+    uint64_t time_step_{0};
     std::vector<std::string> expected_joint_names_;
+
+    // Hardening
+    std::chrono::milliseconds timer_period_{1};
+    rclcpp::Time last_joint_state_time_{0, 0, RCL_ROS_TIME};
+    double max_staleness_sec_{0.05};
 };
 }           // namespace context_aware_ids
 #endif      // CONTEXT_AWARE_IDS_NODE_HPP_

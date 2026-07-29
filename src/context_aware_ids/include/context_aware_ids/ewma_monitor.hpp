@@ -1,8 +1,8 @@
 #ifndef CONTEXT_AWARE_IDS_EWMA_MONITOR_HPP_
 #define CONTEXT_AWARE_IDS_EWMA_MONITOR_HPP_
 
-#include <Eigen/Dense>
 #include <cmath>
+#include <Eigen/Dense>
 
 namespace context_aware_ids
 {
@@ -21,9 +21,10 @@ public:
     EWMAMonitor(double alpha, double base_limit, double mass_limit)
     // Member Initializer Lists (Directly writes values in raw memory)
     // if put inside {} it would slow, as it will create empty first then assign values
-    : alpha_(alpha),
-    base_limit_(base_limit),
-    loaded_limit_(base_limit + mass_limit)
+    :   alpha_(alpha),
+        base_limit_(base_limit),
+        loaded_limit_(base_limit + mass_limit),
+        curr_limit_(base_limit_)
     {
         Sk_.setZero();      // Running average to zerp
     }
@@ -34,10 +35,15 @@ public:
      * @param payload_context 0 for empty arm, 1 for loaded arm.
      * @return TRUE an attack is detected. FALSE if healthy.
      */
-    [[nodiscard]] inline bool evaluate_anomaly(const MeasurementVector& residual, int payload_context)
+    [[nodiscard]] inline bool evaluate_anomaly(
+        const MeasurementVector& residual, int payload_context)
     {
-        Sk_ = (alpha_ * residual) + ((1.0 - alpha_) * Sk_);   // EWMA Smoothing
-        curr_limit_ = (payload_context == 1) ? loaded_limit_ : base_limit_;   // Context Switching
+        // EWMA Smoothing
+        Sk_ = (alpha_ * residual) + ((1.0 - alpha_) * Sk_);
+        // Treating corruption as an attack signal
+        if (!Sk_.allFinite()) { return true; }
+        // Context-aware threshold switching
+        curr_limit_ = (payload_context == 1) ? loaded_limit_ : base_limit_;
         // THE ALARM
         if (Sk_.norm() > curr_limit_)     // L2 Norm of 7-joint error vector.
         {
