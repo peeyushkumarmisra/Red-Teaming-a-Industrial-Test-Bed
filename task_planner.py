@@ -2,20 +2,29 @@ import os
 import time
 import rclpy
 import random
+import threading
 import subprocess
 import ikpy.chain
 import numpy as np
-import threading
 from rclpy.node import Node
 from std_msgs.msg import Int8
+from std_msgs.msg import Header
+from rclpy.parameter import Parameter
+from sensor_msgs.msg import JointState
 from builtin_interfaces.msg import Duration
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 class TaskPlanner(Node):
 
     def __init__(self):
-        super().__init__('task_planner')
+        super().__init__('task_planner', parameter_overrides=[
+            rclpy.parameter.Parameter('use_sim_time',
+                rclpy.parameter.Parameter.Type.BOOL, True)])
         self.context_ = self.create_publisher(Int8, '/task_context', 10)
+        self.arm_ = self.create_publisher(JointTrajectory,
+                                          '/iiwa_arm_controller/joint_trajectory', 10)
+        self.joint_sub_ = self.create_subscription(JointState, '/joint_states', self.joint_state_callback, 10)
+        self.latest_positions_ = [0.0] * 7
         self.get_logger().info("Expriment started")
         # Base physical parameters
         self.base_mass = 5.0
@@ -32,6 +41,16 @@ class TaskPlanner(Node):
         self.loop_thread.daemon = True
         self.loop_thread.start()
 
+    def joint_state_callback(self, msg):
+        # Map by name to maintain correct joint order
+        name_to_pos = {name: pos for name, pos in zip(msg.name, msg.position)}
+        ordered = []
+        for j in ['joint_a1','joint_a2','joint_a3','joint_a4','joint_a5','joint_a6','joint_a7']:
+            if j in name_to_pos:
+                ordered.append(name_to_pos[j])
+        if len(ordered) == 7:
+            self.latest_positions_ = ordered
+
     def calc_ik(self, x, y, z):
         target_position = [x, y, z]
         target_orientation = [0,0,-1] # Forcing straight down to floor
@@ -42,18 +61,25 @@ class TaskPlanner(Node):
         )
         joint_angles = ik_sol[3:10].tolist() # joints 0,1,2 and 7 are fixed 3- 9 are reveloute
         return joint_angles
-
     
     def move_arm(self, target_pos, durr_sec=5):
         traj_msg = JointTrajectory()
+        traj_msg.header = Header()
+        traj_msg.header.stamp = self.get_clock().now().to_msg()
         traj_msg.joint_names = [
             'joint_a1', 'joint_a2', 'joint_a3', 'joint_a4', 
             'joint_a5', 'joint_a6', 'joint_a7'
         ]
-        point = JointTrajectoryPoint()
-        point.positions = target_pos
-        point.time_from_start = Duration(sec=durr_sec, nanosec=0) # movement in 2 seconds
-        traj_msg.points.append(point)
+        # Point 0: explicit current state at t=0 removes first-cycle ambiguity
+        start_point = JointTrajectoryPoint()
+        start_point.positions = self.latest_positions_
+        start_point.time_from_start = Duration(sec=0, nanosec=0)
+        traj_msg.points.append(start_point)
+        # Point 1: target state
+        end_point = JointTrajectoryPoint()
+        end_point.positions = target_pos
+        end_point.time_from_start = Duration(sec=durr_sec, nanosec=0)
+        traj_msg.points.append(end_point)
         self.arm_.publish(traj_msg)
 
     def grab_cube(self):
@@ -142,7 +168,8 @@ class TaskPlanner(Node):
             self.get_logger().info("Grabbing cube")
             grab_anlges = self.calc_ik(0.5,0.0,0.10)
             self.move_arm(grab_anlges, 2)
-            time.sleep(2.5)
+            time.sleep(2.2)
+            time.sleep(0.3)
             self.grab_cube()
             time.sleep(0.5)
             # With Payload
@@ -163,7 +190,7 @@ class TaskPlanner(Node):
             # Drop
             self.publish_context(0)
             self.get_logger().info("Arm dropped the Payload...")
-            self.move_arm([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            # self.move_arm([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 5)
             time.sleep(5.5)
             # Respawing
             self.generate_payload_spawn()
@@ -178,6 +205,7 @@ def main(args=None):
     node = TaskPlanner()
     # First cube before loop begin
     node.generate_payload_spawn()
+    time.sleep(1.0)
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
