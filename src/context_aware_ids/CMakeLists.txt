@@ -20,10 +20,15 @@ find_package(rclcpp REQUIRED)       # ROS 2 C++ client library
 find_package(std_msgs REQUIRED)     # Standard Message Definition
 find_package(sensor_msgs REQUIRED)  # Sensor Message Definition
 find_package(Eigen3 REQUIRED)       # Eigen3 library
-find_package(RBDL REQUIRED)         # Rigid Body Dynamics Library
+find_package(pinocchio REQUIRED)    # Pinocchio dynamics engine
 
 # Compiling the main ROS 2 orchestrator node
-add_executable(ids_node src/ids_node.cpp)
+add_executable(ids_node 
+  src/ids_node.cpp
+  src/robot_model.cpp
+  src/ekf_estimator.cpp
+  src/dual_ewma.cpp
+  )
 
 # Including header directories
 target_include_directories(ids_node PUBLIC
@@ -35,8 +40,7 @@ target_include_directories(ids_node PUBLIC
 # Linking the external libraries
 target_link_libraries(ids_node
   Eigen3::Eigen
-  rbdl
-  rbdl_urdfreader
+  pinocchio::pinocchio
 )
 
 target_compile_features(ids_node PUBLIC c_std_99 cxx_std_20) 

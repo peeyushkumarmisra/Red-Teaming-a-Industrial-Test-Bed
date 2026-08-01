@@ -7,66 +7,96 @@ using namespace std::chrono_literals;
 
 namespace context_aware_ids
 {
-IDSNode::IDSNode() 
-:   Node("ids_node"),
+IDSNode::IDSNode() : Node("ids_node"),
     data_received_(false),
+    attacked_(false),
     current_payload_context_(0),
     time_step_(0),
-    expected_joint_names_({"joint_a1", "joint_a2", "joint_a3", "joint_a4", "joint_a5", "joint_a6", "joint_a7"})
+    max_staleness_sec_(0.01) // 10 ms limit before DoS alarm triggers
 {
+    // Initializing ROS 2 Parameters 
+    this->declare_parameter<std::string>("urdf_path","/workspaces/thesis/iiwa.urdf");
+    std::string urdf_path = this->get_parameter("urdf_path").as_string();
+    // Initializing Model
+    if (!robot_dynamics::RobotDynamics::getInstance().initialize(urdf_path)) {
+        RCLCPP_ERROR(this->get_logger(), "ERROR: Could not load URDF into Pinocchio.");
+        rclcpp::shutdown();
+    }
+    // Initializing Estimator & Tripwire
+    ekf_estimator_ = std::make_unique<EKFEstimator>(
+        robot_dynamics::RobotDynamics::getInstance().getModel());
+    /*Fast EWMA: 0.2 | Slow EWMA: 0.001 | Burn-in: 5000 samples*/
+    dual_ewma_ = std::make_unique<DualEWMA>(0.2, 0.001, 5000);
+    
+    // Memory Allocation
+    q_          = Eigen::VectorXd::Zero(7);
+    qd_         = Eigen::VectorXd::Zero(7);
+    last_qd_    = Eigen::VectorXd::Zero(7);
+    qdd_        = Eigen::VectorXd::Zero(7);
+    m_tau_      = Eigen::VectorXd::Zero(7);
+    expected_joint_names_ = {"joint_a1", "joint_a2", "joint_a3", "joint_a4", "joint_a5", "joint_a6", "joint_a7"};
+    
+    // Setting up ROS 2 Communications
+    joint_sub_      = this->create_subscription<sensor_msgs::msg::JointState>(
+        "/joint_states", rclcpp::QoS(10).best_effort(), std::bind(&IDSNode::joint_callback, this, std::placeholders::_1));
+    context_sub_    = this->create_subscription<std_msgs::msg::Int8>(
+        "/context", 10, std::bind(&IDSNode::context_callback, this, std::placeholders::_1));
+    alarm_pub_      = this->create_publisher<std_msgs::msg::Bool>("/security/emergency_halt", 10);
+    residual_pub_   = this->create_publisher<std_msgs::msg::Float64>("/ids/residual", 10);
+    delta_pub_      = this->create_publisher<std_msgs::msg::Float64>("/ids/ewma_delta", 10);
+    
     // For recoading the data
     csv_file_.open("/workspaces/thesis/experiment_data.csv");
-    if (!csv_file_.is_open()) {
+    if (!csv_file_.is_open())
+    {
         RCLCPP_ERROR(this->get_logger(), "Cannot open CSV file");
-    } else {
-        csv_file_ << "TimeStep,Residual_Norm,EWMA_Norm,Active_Threshold,Attack_Flag\n";
+    } 
+    else 
+    {
+        csv_file_ << "TimeStep,Residual,EWMA_Delta,Active_Threshold,Attack_Flag\n";
         csv_file_.flush(); 
     }
-    // Initializing our memory caches
-    latest_positions_.setZero();
-    latest_torques_.setZero();
-    // Declaring ROS 2 Parameters 
-    this->declare_parameter<std::string>("urdf_path","/workspaces/thesis/iiwa.urdf");
-    std::string active_urdf_path = this->get_parameter("urdf_path").as_string();
-    // Initializing maths
-    RCLCPP_INFO(this->get_logger(), "Loading Maths Engine from %s", active_urdf_path.c_str());
-    ekf_engine_     = std::make_unique<EKFEngine<7>>(active_urdf_path);
-    // alpha = 0.1, base threshold = 2.0, mass variance allowance = 0.5
-    ewma_monitor_   = std::make_unique<EWMAMonitor<7>>(0.1, 2.0, 0.5); 
-    // Setting up ROS 2 Communications
-    rclcpp::QoS sensor_qos = rclcpp::SensorDataQoS();
-    joint_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
-        "/joint_states", sensor_qos,
-        std::bind(&IDSNode::joint_state_callback, this, std::placeholders::_1)
-    );
-    context_sub_ = this->create_subscription<std_msgs::msg::Int8>(
-        "/task_context", 10,
-        std::bind(&IDSNode::task_context_callback, this, std::placeholders::_1)
-    );
-    alarm_pub_ = this->create_publisher<std_msgs::msg::Bool>("/ids_alarm", 10);
-    RCLCPP_INFO(this->get_logger(), "IDS Node Successfully Initialized");
-    // Start the control loop
-    timer_period_ = 1ms;
-    timer_ = this->create_wall_timer(
-        timer_period_, std::bind(&IDSNode::control_loop_callback, this));
+    timer_ = this->create_wall_timer(timer_period_, std::bind(&IDSNode::control_loop_callback, this)); // Start the control loop
 }
 
-void IDSNode::task_context_callback(const std_msgs::msg::Int8::SharedPtr msg)
+
+IDSNode::~IDSNode() 
+{ 
+    if (csv_file_.is_open()) 
+    {
+        csv_file_.close();
+    } 
+}
+
+
+void IDSNode::context_callback(const std_msgs::msg::Int8::SharedPtr msg)
 {
-    current_payload_context_ = msg->data;
+    if (current_payload_context_ != msg->data) 
+    {
+        current_payload_context_ = msg->data;
+        /*Context 0 = Unloaded (0.0kg), Context 1 = Loaded (5.0kg)*/
+        double new_mass = (current_payload_context_ == 1) ? 5.0:0.0; 
+        // Updating to Physics Engine and Estimator
+        robot_dynamics::RobotDynamics::getInstance().setEndEffectorMass(new_mass);
+        ekf_estimator_->resetPayloadMass(new_mass);
+        RCLCPP_INFO(this->get_logger(), "Task Context Switched. Updated physical model to payload: %.1f kg", new_mass);
+    }
 }
 
-void IDSNode::joint_state_callback(const sensor_msgs::msg::JointState::SharedPtr msg)
+void IDSNode::joint_callback(const sensor_msgs::msg::JointState::SharedPtr msg)
 {
     int matched_joints = 0;
-    for (size_t i = 0; i < msg->name.size(); ++i) {
-        for (size_t j = 0; j < 7; ++j) {
-            if (msg->name[i] == expected_joint_names_[j]) {
-                latest_positions_(j) = msg->position[i];
-                if (msg->effort.size() == msg->name.size() && std::isfinite(msg->effort[i])) {
-                    latest_torques_(j) = msg->effort[i];
-                // } else {
-                //     latest_torques_(j) = 0.0; // See note below on 0 torque
+    for (size_t i = 0; i < msg->name.size(); ++i) 
+    {
+        for (size_t j = 0; j < 7; ++j)
+        {
+            if (msg->name[i] == expected_joint_names_[j])
+            {
+                q_(j) = msg->position[i];
+                qd_(j) = msg->velocity[i];
+                if (msg->effort.size() == msg->name.size() && std::isfinite(msg->effort[i]))
+                {
+                    m_tau_(j) = msg->effort[i];
                 }
                 matched_joints++;
                 break;
@@ -75,15 +105,16 @@ void IDSNode::joint_state_callback(const sensor_msgs::msg::JointState::SharedPtr
     }
     if (matched_joints == 7) {
         data_received_ = true;
-        last_joint_state_time_ = this->now();
+        last_joint_time_ = this->now();
     }
 }
+
 
 void IDSNode::control_loop_callback()
 {
     if (!data_received_) {return;}
     // Stale telemetry detection (network / DoS / FDIA freeze)
-    double stale_sec = (this->now() - last_joint_state_time_).seconds();
+    double stale_sec = (this->now() - last_joint_time_).seconds();
     if (stale_sec > max_staleness_sec_) {
         RCLCPP_ERROR(this->get_logger(),
             "STALE TELEMETRY — possible network/FDIA freeze! (%.3f s)", stale_sec);
@@ -94,47 +125,46 @@ void IDSNode::control_loop_callback()
     }
     // Deriving dt from timer period
     double dt = std::chrono::duration<double>(timer_period_).count();
-    // Passing Data to EKF
-    auto residual = ekf_engine_->compute_residual(
-        latest_positions_,
-        latest_torques_,
-        current_payload_context_,
-        dt
-    );
-
-    if (!residual.allFinite()) {
-        RCLCPP_ERROR(this->get_logger(), "EKF DIVERGED — residual non-finite!");
-        std_msgs::msg::Bool alarm_msg;
+    qdd_ = (qd_ - last_qd_) / dt;
+    last_qd_ = qd_;
+    // Computing tau
+    Eigen::VectorXd tau_model = robot_dynamics::RobotDynamics::getInstance().computeInverseDynamics(q_, qd_, qdd_);
+    // Friction coff
+    Eigen::VectorXd fric_coeff = ekf_estimator_->getFrictionCoff();
+    Eigen::VectorXd tau_exp = tau_model + (fric_coeff.array() * qd_.array()).matrix();
+    // Calculating Torque Residual
+    Eigen::VectorXd residual_vec = m_tau_ - tau_exp;
+    double residual_ = residual_vec.norm();
+    // Tripwire
+    attacked_ = dual_ewma_->update(residual_);
+    // Halt if Attacked
+    if (attacked_) {
+        std_msgs::msg::Bool alarm_msg; 
         alarm_msg.data = true;
         alarm_pub_->publish(alarm_msg);
-        return; // will not feed a NaN residual into EWMA at all
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000, 
+            "FDIA ATTACK DETECTED! Tripwire threshold breached.");
     }
 
-    // Now to EWMA
-    bool is_attack = ewma_monitor_->evaluate_anomaly(residual, current_payload_context_);
+    // Updating EKF if system is safe
+    ekf_estimator_->update(q_, qd_, qdd_,m_tau_, attacked_);
 
     // For Recording Data
-    double res_norm     = residual.norm();
-    double ewma_norm    = ewma_monitor_->get_ewma_norm();
-    double active_limit = ewma_monitor_->get_active_limit();
-    csv_file_   << time_step_ << ","
-                << res_norm << ","
-                << ewma_norm << ","
-                << active_limit << ","
-                << (is_attack ? 1:0) << "\n";
-    csv_file_.flush();
-    // For every 100 iterations
-    // if (time_step_ % 100 == 0) {csv_file_.flush();}
-    time_step_++;
-
-    // Alarm Triger
-    if (is_attack)
+    std_msgs::msg::Float64 res_msg, delta_msg;
+    res_msg.data = residual_;
+    delta_msg.data = dual_ewma_->getCurrentDelta();
+    residual_pub_->publish(res_msg);
+    delta_pub_->publish(delta_msg);
+    if (csv_file_.is_open())
     {
-        RCLCPP_ERROR(this->get_logger(), "SECURITY FAILURE!");
-        std_msgs::msg::Bool alarm_msg;
-        alarm_msg.data = true;
-        alarm_pub_->publish(alarm_msg);
+        csv_file_<< time_step_ << ","
+                << residual_ << ","
+                << dual_ewma_->getCurrentDelta() << ","
+                << dual_ewma_->getThreshold() << ","
+                << (attacked_ ? 1:0) << "\n";
+        csv_file_.flush();
     }
+    time_step_++;
 }
 }   // namespace context_aware_ids
 
@@ -147,7 +177,7 @@ int main(int argc, char * argv[])
         rclcpp::spin(node);
     } catch (const std::exception& e) {
         RCLCPP_FATAL(rclcpp::get_logger("ids_node"),
-        "NODE CRASHED WITH FATAL EXCEPTION: %s", e.what());
+        "NODE CRASHED WITH EXCEPTION: %s", e.what());
     }
     rclcpp::shutdown();
     return 0;

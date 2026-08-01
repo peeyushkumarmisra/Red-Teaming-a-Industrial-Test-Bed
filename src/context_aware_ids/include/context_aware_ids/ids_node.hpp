@@ -1,19 +1,21 @@
 #ifndef CONTEXT_AWARE_IDS_NODE_HPP_
 #define CONTEXT_AWARE_IDS_NODE_HPP_
 
-#include <rclcpp/rclcpp.hpp>
-#include <std_msgs/msg/int8.hpp>
-#include <std_msgs/msg/bool.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
-
-#include "context_aware_ids/ekf_engine.hpp"
-#include "context_aware_ids/ewma_monitor.hpp"
+#include "context_aware_ids/dual_ewma.hpp"
+#include "context_aware_ids/ekf_estimator.hpp"
+#include "context_aware_ids/robot_model.hpp"
 
 #include <memory>
 #include <string>
 #include <chrono>
 #include <vector>
 #include <fstream>
+#include <Eigen/Dense>
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/int8.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/float64.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 
 namespace context_aware_ids
 {
@@ -22,14 +24,20 @@ class IDSNode
 {
 public:
     IDSNode();
+    ~IDSNode();
 
 private:
     void control_loop_callback();   // Sync timer loop
     // Async network callback
-    void task_context_callback(const std_msgs::msg::Int8::SharedPtr msg);
-    void joint_state_callback(const sensor_msgs::msg::JointState::SharedPtr msg);
+    void context_callback(const std_msgs::msg::Int8::SharedPtr msg);
+    void joint_callback(const sensor_msgs::msg::JointState::SharedPtr msg);
+
     bool data_received_{false};
+    bool attacked_{false};
     int current_payload_context_{0};
+
+     // Differentiating spike on first time
+    bool first_run_{true};
 
     // ROS2 Communication Interface
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_sub_;
@@ -37,23 +45,28 @@ private:
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr alarm_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
 
-    // Composition: Unique pointers explicitly sized for 7-DOF
-    std::unique_ptr<EKFEngine<7>> ekf_engine_;
-    std::unique_ptr<EWMAMonitor<7>> ewma_monitor_;
+    // For Plotting
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr residual_pub_;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr delta_pub_; 
 
-    // High-speed memory caches to hold data between network messages and the timer
-    Eigen::Matrix<double, 7, 1> latest_positions_   = Eigen::Matrix<double, 7, 1>::Zero();
-    Eigen::Matrix<double, 7, 1> latest_torques_     = Eigen::Matrix<double, 7, 1>::Zero();
+    // Modules
+    std::unique_ptr<EKFEstimator> ekf_estimator_;
+    std::unique_ptr<DualEWMA> dual_ewma_;
+
+    // Kinematic Caches
+    Eigen::VectorXd q_;
+    Eigen::VectorXd qd_;
+    Eigen::VectorXd last_qd_;
+    Eigen::VectorXd qdd_;
+    Eigen::VectorXd m_tau_;
+    std::vector<std::string> expected_joint_names_;
 
     // For recoading the data
     std::ofstream csv_file_;
     uint64_t time_step_{0};
-    std::vector<std::string> expected_joint_names_;
-
-    // Hardening
     std::chrono::milliseconds timer_period_{1};
-    rclcpp::Time last_joint_state_time_{0, 0, RCL_ROS_TIME};
-    double max_staleness_sec_{0.05};
+    rclcpp::Time last_joint_time_{0, 0, RCL_ROS_TIME};
+    double max_staleness_sec_{0.01};
 };
-}           // namespace context_aware_ids
+}   // namespace context_aware_ids
 #endif      // CONTEXT_AWARE_IDS_NODE_HPP_
