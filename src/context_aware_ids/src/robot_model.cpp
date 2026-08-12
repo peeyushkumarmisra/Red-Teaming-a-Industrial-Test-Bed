@@ -3,6 +3,8 @@
 #include <Eigen/Dense>
 #include <pinocchio/parsers/urdf.hpp>
 #include <pinocchio/algorithm/rnea.hpp>
+#include <pinocchio/algorithm/crba.hpp>
+
 
 namespace robot_dynamics
 {
@@ -79,5 +81,30 @@ void RobotDynamics::setEndEffectorMass(double mass)
     model_.inertias[ee_joint_id_] = pinocchio::Inertia(mass, old_inertia.lever(), old_inertia.inertia());
     ee_mass_ = mass;
     std::cout << "[RobotDynamics] End-effector mass dynamically updated to: " << ee_mass_ << " kg" << std::endl;
+}
+
+Eigen::MatrixXd RobotDynamics::getMassMatrix(const Eigen::VectorXd& q)
+{
+    std::lock_guard<std::mutex> lock(dynamics_mutex_);
+    if (!initialized_) {
+        std::cerr << "[RobotDynamics] WARNING: getMassMatrix called before initialization!" << std::endl;
+        return Eigen::MatrixXd::Zero(model_.nv, model_.nv);
+    }
+    pinocchio::crba(model_, *data_, q);
+    // Pinocchio stores only the upper triangle; mirror it to make M full
+    data_->M.triangularView<Eigen::StrictlyLower>() = 
+        data_->M.transpose().triangularView<Eigen::StrictlyLower>();
+    return data_->M;
+}
+
+Eigen::VectorXd RobotDynamics::computeBiasForce(const Eigen::VectorXd& q, const Eigen::VectorXd& qd)
+{
+    std::lock_guard<std::mutex> lock(dynamics_mutex_);
+    if (!initialized_) {
+        return Eigen::VectorXd::Zero(model_.nv);
+    }
+    // h(q,qd) = C(q,qd)*qd + G(q) ... RNEA with zero acceleration
+    Eigen::VectorXd zero_acc = Eigen::VectorXd::Zero(model_.nv);
+    return pinocchio::rnea(model_, *data_, q, qd, zero_acc);
 }
 }   // namespace robot_dynamics

@@ -29,7 +29,8 @@ double EKFEstimator::computeResidualNorm(
     double payload_mass = state_x(7);
     // Setting payload mass in model
     pinocchio::Inertia old_inertia = model_.inertias[ee_joint_id_];
-    model_.inertias[ee_joint_id_] = pinocchio::Inertia(payload_mass, old_inertia.lever(), old_inertia.inertia());
+    model_.inertias[ee_joint_id_] = pinocchio::Inertia(
+        payload_mass, old_inertia.lever(), old_inertia.inertia());
     // Computing torques
     Eigen::VectorXd tau = pinocchio::rnea(model_, *data_, q, qd, qdd);
     // Adding friction torque
@@ -51,31 +52,35 @@ Eigen::VectorXd EKFEstimator::update(
     // To prevent a Data race
     std::lock_guard<std::mutex> lock(ekf_mutex_);
     // Preventing attacks to be absorbed as mechanical wear
-    if (attacked){return x_;} // Sip Update
+    if (attacked){return x_;} // Skip Update
     // Predicting Step
     Eigen::MatrixXd P_pred = P_ + Q_;
     // Computing  Measurement Jacobian H
-    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(M_DIM, S_DIM); // Approximating H via finite differences.
+    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(M_DIM, S_DIM); 
     double epsilon = 1e-5;
-    /*
-    Things Needed to be added here
-    */
-   double z_pred = computeResidualNorm(q_true, qd_true, qdd_true, m_tau, x_);
-   for (int i = 0; i< S_DIM; ++i)
-   {
-    Eigen::VectorXd x_perturbed = x_;
-    x_perturbed(i) += epsilon;
-    double z_perturbed = computeResidualNorm(q_true, qd_true, qdd_true, m_tau, x_perturbed);
-    H(0,i) = (z_perturbed - z_pred) / epsilon;
-   }
-   // Update Step (Kalman Gain)
-   double S = (H * P_pred * H.transpose())(0,0)+ R_;
-   Eigen::VectorXd K = P_pred * H.transpose() / S;
-   double z = 0.0; 
-   x_ = x_ + K * (z-z_pred);
-   Eigen::MatrixXd I = Eigen::MatrixXd::Identity(S_DIM, S_DIM);
-   P_ = (I-K*H) * P_pred;
-   return x_;
+    double z_pred = computeResidualNorm(q_true, qd_true, qdd_true, m_tau, x_);
+    for (int i = 0; i< S_DIM; ++i)
+    {
+        Eigen::VectorXd x_perturbed = x_;
+        x_perturbed(i) += epsilon;
+        double z_perturbed = computeResidualNorm(q_true, qd_true, qdd_true, m_tau, x_perturbed);
+        H(0,i) = (z_perturbed - z_pred) / epsilon;
+    }
+    // Update Step (Kalman Gain)
+    double S = (H * P_pred * H.transpose())(0,0)+ R_;
+    Eigen::VectorXd K = P_pred * H.transpose() / S;
+    double z = 0.0; 
+    x_ = x_ + K * (z-z_pred);
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(S_DIM, S_DIM);
+    P_ = (I-K*H) * P_pred;
+
+     //After updating state, syncing the model to the NEW best estimate
+    {
+        pinocchio::Inertia old_inertia = model_.inertias[ee_joint_id_];
+        model_.inertias[ee_joint_id_] = pinocchio::Inertia(
+            x_(7), old_inertia.lever(), old_inertia.inertia());
+    }
+    return x_;
 }
 
 Eigen::VectorXd EKFEstimator::getFrictionCoff() const

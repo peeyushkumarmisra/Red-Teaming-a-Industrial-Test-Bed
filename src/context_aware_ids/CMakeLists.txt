@@ -21,6 +21,7 @@ find_package(std_msgs REQUIRED)     # Standard Message Definition
 find_package(sensor_msgs REQUIRED)  # Sensor Message Definition
 find_package(Eigen3 REQUIRED)       # Eigen3 library
 find_package(pinocchio REQUIRED)    # Pinocchio dynamics engine
+find_package(control_msgs REQUIRED)
 
 # Compiling the main ROS 2 orchestrator node
 add_executable(ids_node 
@@ -50,6 +51,7 @@ ament_target_dependencies(ids_node
   "rclcpp"
   "std_msgs"
   "sensor_msgs"
+  "control_msgs"
 )
 
 # Installing the compiled binary into the ROS 2 workspace

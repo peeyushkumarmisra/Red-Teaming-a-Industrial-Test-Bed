@@ -309,4 +309,13 @@
       <detach_topic>/gripper/detach</detach_topic>
     </plugin>
   </gazebo>
+  <!-- Gazebo Friction Plugin-->
+  <gazebo>
+    <plugin name="custom_gazebo_plugins::FrictionDrift" 
+          filename="libfriction_drift_plugin.so">
+      <joint_name>joint_a4</joint_name>
+      <drift_rate>0.8</drift_rate>
+      <max_friction>25.0</max_friction>
+    </plugin>
+  </gazebo>
 </robot>

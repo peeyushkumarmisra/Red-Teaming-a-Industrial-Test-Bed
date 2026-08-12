@@ -10,13 +10,15 @@ namespace context_aware_ids
 class DualEWMA
 {
 public:
-   // Initializing fast/slow learning rates
-   DualEWMA(double lambda_fast, double lambda_slow, int burn_in);
-   bool update(double residual);
-   // For logging and telemetry
-   double getCurrentDelta() const;
-   double getThreshold() const;
-   bool isArmed() const;
+    // Initializing fast/slow learning rates
+    DualEWMA(double lambda_fast, double lambda_slow, int burn_in);
+    bool update(double residual);
+    // For logging and telemetry
+    double getCurrentDelta() const;
+    double getThreshold() const;
+    bool isArmed() const;
+    double getFast() const;
+    double getSlow() const;
 private:
     double lambda_f_;   // Fast learning rate
     double lambda_s_;   // Slow learning rate

@@ -19,10 +19,10 @@ class TaskPlanner(Node):
     def __init__(self):
         super().__init__('task_planner', parameter_overrides=[
             rclpy.parameter.Parameter('use_sim_time',
-                rclpy.parameter.Parameter.Type.BOOL, True)])
+                                      rclpy.parameter.Parameter.Type.BOOL, True)])
         self.context_ = self.create_publisher(Int8, '/task_context', 10)
         self.arm_ = self.create_publisher(JointTrajectory,
-                                          '/iiwa_arm_controller/joint_trajectory', 10)
+                                          '/joint_trajectory', 10)
         self.joint_sub_ = self.create_subscription(JointState, '/joint_states', self.joint_state_callback, 10)
         self.latest_positions_ = [0.0] * 7
         self.get_logger().info("Expriment started")
@@ -34,8 +34,6 @@ class TaskPlanner(Node):
             "/workspaces/thesis/iiwa.urdf",
             base_elements=["world"])
         self.is_first_spawn = True # Tto track the first spawn
-        # Expriment loop
-        self.arm_ = self.create_publisher(JointTrajectory, '/iiwa_arm_controller/joint_trajectory', 10)
         # Threading It
         self.loop_thread = threading.Thread(target=self.exp_loop)
         self.loop_thread.daemon = True
@@ -53,13 +51,24 @@ class TaskPlanner(Node):
 
     def calc_ik(self, x, y, z):
         target_position = [x, y, z]
-        target_orientation = [0,0,-1] # Forcing straight down to floor
+        target_orientation = [0,0,-1]
         ik_sol = self.arm_chain.inverse_kinematics(
-            target_position= target_position,
+            target_position=target_position,
             target_orientation=target_orientation,
             orientation_mode="Z"
         )
-        joint_angles = ik_sol[3:10].tolist() # joints 0,1,2 and 7 are fixed 3- 9 are reveloute
+        joint_angles = ik_sol[3:10].tolist()
+        # Avoiding Singularity (joint_a4 is elbow joint)
+        if abs(joint_angles[3]) < 0.20:
+            self.get_logger().warn(f"Singularity detected (joint_a4={joint_angles[3]:.3f}), nudging target...")
+            # Nudge target 3 cm higher and retry IK
+            target_position[2] += 0.03
+            ik_sol = self.arm_chain.inverse_kinematics(
+                target_position=target_position,
+                target_orientation=target_orientation,
+                orientation_mode="Z"
+            )
+            joint_angles = ik_sol[3:10].tolist()
         return joint_angles
     
     def move_arm(self, target_pos, durr_sec=5):
@@ -95,7 +104,8 @@ class TaskPlanner(Node):
         rand_mass = random.uniform(4.95, 5.06)
         scale = rand_mass / self.base_mass
         rand_inertia = self.base_inertia * scale
-        self.get_logger().info(f"Generating new workpiece -> Mass: {rand_mass:.3f} kg | Inertia: {rand_inertia:.6f}")
+        self.get_logger().info(
+            f"Generating new workpiece -> Mass: {rand_mass:.3f} kg | Inertia: {rand_inertia:.6f}")
         # Creating a sdf for different mass
         sdf_content = f"""<?xml version="1.0" ?>
 <sdf version="1.8">
@@ -152,7 +162,10 @@ class TaskPlanner(Node):
         time.sleep(0.5)
         # Appearing the new payload
         subprocess.run(
-            f"gz service -s /world/empty/create --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --req 'sdf_filename: \"{file_path}\", name: \"payload\"'",
+            "gz service -s /world/empty/create" 
+            "--reqtype gz.msgs.EntityFactory" 
+            "--reptype gz.msgs.Boolean" 
+            f"--req 'sdf_filename: \"{file_path}\", name: \"payload\"'",
             shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
 

@@ -77,4 +77,17 @@ bool DualEWMA::isArmed() const
     std::lock_guard<std::mutex> lock(ewma_mutex_);
     return armed_;
 }
+
+
+double DualEWMA::getFast() const 
+{ 
+    std::lock_guard<std::mutex> lock(ewma_mutex_);
+    return Sf_; 
+}
+
+double DualEWMA::getSlow() const 
+{ 
+    std::lock_guard<std::mutex> lock(ewma_mutex_);
+    return Ss_; 
+}
 }   // namespace context_aware_ids

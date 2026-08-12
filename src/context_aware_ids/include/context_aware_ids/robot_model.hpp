@@ -37,6 +37,8 @@ public:
         const Eigen::VectorXd& qdd
     );
 
+    Eigen::MatrixXd getMassMatrix(const Eigen::VectorXd& q);
+    Eigen::VectorXd computeBiasForce(const Eigen::VectorXd& q, const Eigen::VectorXd& qd);
     // Computing Gravity Term
     Eigen::VectorXd computeGravity(const Eigen::VectorXd& q);
 
