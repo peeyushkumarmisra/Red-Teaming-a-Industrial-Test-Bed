@@ -14,6 +14,13 @@ from sensor_msgs.msg import JointState
 from builtin_interfaces.msg import Duration
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
+CUBE_SRC_POS = "-0.5, 0.0, 0.05"
+CUBE_SRC_HOVER_POS = (-0.6, 0.0, 0.25)
+CUBE_SRC_GRAB_POS = (-0.5, 0.0, 0.10)
+CUBE_DEST_HOVER_POS = (0.0, -0.6, 0.25)
+CUBE_DEST_DROP_POS = (0.0, -0.5, 0.10)
+
+
 class TaskPlanner(Node):
 
     def __init__(self):
@@ -124,7 +131,7 @@ class TaskPlanner(Node):
         sdf_content = f"""<?xml version="1.0" ?>
 <sdf version="1.8">
     <model name="payload">
-        <pose>0.5 0.0 0.05 0 0 0</pose>
+        <pose>{CUBE_SRC_POS} 0 0 0</pose>
         <link name="cube_link">
             <inertial>
                 <mass>{rand_mass:.3f}</mass>
@@ -197,41 +204,42 @@ class TaskPlanner(Node):
 
     def exp_loop(self):
         time.sleep(3.0) # Moment to initialize before looping
+        src_hover   = self.calc_ik(*CUBE_SRC_HOVER_POS)
+        src_grab    = self.calc_ik(*CUBE_SRC_GRAB_POS)
+        dest_hover  = self.calc_ik(*CUBE_DEST_HOVER_POS)
+        dest_drop   = self.calc_ik(*CUBE_DEST_DROP_POS)
         while rclpy.ok():
-            # Without Payload
+            # At Hovering Position at Source (Without Payload)
             self.publish_context(0)
-            self.get_logger().info("Arm is moving back to Sources...")
-            hover_angles = self.calc_ik(0.6,0.0,0.25)
-            self.move_arm(hover_angles, 4)
+            self.get_logger().info("Arm is moving to Sources")
+            self.move_arm(src_hover, 4)
             time.sleep(4.5)
+            # At Grabbing Position at Source (Without Payload)
             self.get_logger().info("Grabbing cube")
-            grab_anlges = self.calc_ik(0.5,0.0,0.10)
-            self.move_arm(grab_anlges, 2)
-            time.sleep(2.2)
-            time.sleep(0.3)
+            self.move_arm(src_grab, 2)
+            time.sleep(2.5)
+            # Cube Picked (With Payload)
             self.grab_cube()
             self.cube_attached = True
             time.sleep(0.5)
-            # With Payload
+            # At Hovering Position at Source (With Payload)
             self.publish_context(1)
             self.get_logger().info("Lifting cube...")
-            self.move_arm(hover_angles, 2)
+            self.move_arm(src_hover, 2)
             time.sleep(2.5)
-            self.get_logger().info("Arm is moving to Destination...")
-            dest_angles = self.calc_ik(0.0, 0.5, 0.25)
-            self.move_arm(dest_angles, 4)
+            # At Hovering Position at Destination (With Payload)
+            self.get_logger().info("Arm is moving to Destination")
+            self.move_arm(dest_hover, 4)
             time.sleep(4.5)
-            self.get_logger().info("Lowering to floor...")
-            drop_angles = self.calc_ik(0.0, 0.5, 0.10)
-            self.move_arm(drop_angles, 2)
+            # At Dropping Position at Destination (With Payload)
+            self.get_logger().info("Lowering to floor")
+            self.move_arm(dest_drop, 2)
             time.sleep(2.5)
+            # Cube Dropped (Without Payload)
             self.drop_cube()
-            time.sleep(1.0)
-            # Drop
             self.publish_context(0)
-            self.get_logger().info("Arm dropped the Payload...")
-            self.move_arm([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 5)
-            time.sleep(5.5)
+            self.get_logger().info("Arm dropped the Payload")
+            time.sleep(6.0)
             # Respawing
             self.generate_payload_spawn()
 

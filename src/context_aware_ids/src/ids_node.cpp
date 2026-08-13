@@ -34,7 +34,7 @@ IDSNode::IDSNode() : Node("ids_node"),
     ekf_estimator_ = std::make_unique<EKFEstimator>(
         robot_dynamics::RobotDynamics::getInstance().getModel());
     /*Fast EWMA: 0.2 | Slow EWMA: 0.001 | Burn-in: 1000 samples*/
-    dual_ewma_ = std::make_unique<DualEWMA>(0.2, 0.001, 30000);
+    dual_ewma_ = std::make_unique<DualEWMA>(0.2, 0.001, 1000);
     
     // Memory Allocation
     q_          = Eigen::VectorXd::Zero(7);

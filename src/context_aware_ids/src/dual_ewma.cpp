@@ -42,7 +42,7 @@ bool DualEWMA::update(double residual)
             double varr = (sq_sum / burn_in_tot_) - (mean * mean);
             double std_dev = std::sqrt(std::max(0.0, varr));
             // Setting Threshold
-            Th_ = mean + 3.0 * std_dev;
+            Th_ = mean + 1.0 * std_dev;
             // Initializing both EWMAs to the steady-state mean
             Sf_ = mean;
             Ss_ = mean;
@@ -56,7 +56,7 @@ bool DualEWMA::update(double residual)
     }
     Sf_ = lambda_f_ * residual + (1.0 - lambda_f_) * Sf_;   // Updating Fast EWMA
     Ss_ = lambda_s_ * residual + (1.0 - lambda_s_) * Ss_;   // Updating Slow EWMA
-    curr_delta_ = std::fabs(Sf_ - Ss_);                      // Computing Absolute Delta
+    curr_delta_ = std::fabs(Sf_ - Ss_);                     // Computing Absolute Delta
     return curr_delta_ > Th_;                               // Return True if threshold is breached
 }
 
