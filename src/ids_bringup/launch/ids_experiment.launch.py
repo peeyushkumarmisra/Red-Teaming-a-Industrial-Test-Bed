@@ -2,7 +2,23 @@ from launch_ros.actions import Node
 from launch import LaunchDescription
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
-from launch.actions import DeclareLaunchArgument, TimerAction, SetLaunchConfiguration
+from launch.actions import DeclareLaunchArgument, TimerAction, OpaqueFunction
+
+def launch_vulnerable_controller(context):
+    attack = LaunchConfiguration('enable_attack').perform(context)
+    if attack == 'true':
+        return [Node(
+            package = 'vulnerable_controller',
+            executable = 'vulnerable_controller',
+            name = 'vulnerable_controller',
+            output = 'screen')]
+    else:
+        return [Node(
+            package = 'vulnerable_controller',
+            executable = 'vulnerable_controller',
+            name = 'vulnerable_controller',
+            output = 'screen',
+            remappings=[('/spoofed_joint_states', '/joint_states')])]
 
 def generate_launch_description():
     # Declaring Launch Arguments 
@@ -19,12 +35,9 @@ def generate_launch_description():
         name = 'task_planner_node',
         output = 'screen')
 
-    # The Vulnerable Controller (NEW — was missing!)
-    vulnerable_controller = Node(
-        package = 'vulnerable_controller',
-        executable = 'vulnerable_controller',
-        name = 'vulnerable_controller',
-        output = 'screen')
+    # The Vulnerable Controller
+    vulnerable_controller = OpaqueFunction(
+        function=launch_vulnerable_controller)
 
     # The Shadow Controller / IDS
     ids_node = Node(
@@ -44,5 +57,5 @@ def generate_launch_description():
 
     # Build and Return the Launch Description
     return LaunchDescription ([
-        declare_attack_cmd, planner_node, vulnerable_controller,
+        declare_attack_cmd, planner_node, vulnerable_controller, 
         TimerAction(period=5.0, actions=[ids_node]), attacker_node])

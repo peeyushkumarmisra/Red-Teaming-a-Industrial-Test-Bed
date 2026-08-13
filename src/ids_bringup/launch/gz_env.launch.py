@@ -35,6 +35,14 @@ def generate_launch_description():
         launch_arguments=[('gz_args', '-r empty.sdf')]
     )
 
+    # Bridging Gazebo's clock to ROS 2
+    clock_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock'],
+        output='screen'
+    )
+
     # Starting Robot State Publisher
     robot_state_pub = Node(
         package = 'robot_state_publisher',
@@ -67,5 +75,5 @@ def generate_launch_description():
         ]
     )
     return LaunchDescription([
-        declare_drift_cmd, urdf_selector, gz_sim, 
+        declare_drift_cmd, urdf_selector, gz_sim, clock_bridge, 
         robot_state_pub, spawn_robot, spawn_controllers])

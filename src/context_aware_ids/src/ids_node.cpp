@@ -17,8 +17,8 @@ IDSNode::IDSNode() : Node("ids_node"),
     max_staleness_sec_(0.05)
 {
     // Matching simulation time to Gazebo
-    this->declare_parameter<bool>("use_sim_time", true);
-    this->set_parameter(rclcpp::Parameter("use_sim_time", true));
+    //this->declare_parameter<bool>("use_sim_time", true);
+    //this->set_parameter(rclcpp::Parameter("use_sim_time", true));
     
     // Initializing ROS 2 Parameters 
     this->declare_parameter<std::string>("urdf_path","/workspaces/thesis/iiwa.urdf");
@@ -154,6 +154,7 @@ void IDSNode::state_callback( const control_msgs::msg::JointTrajectoryController
             }
         }
     }
+    state_received_ = true;
 }
 
 

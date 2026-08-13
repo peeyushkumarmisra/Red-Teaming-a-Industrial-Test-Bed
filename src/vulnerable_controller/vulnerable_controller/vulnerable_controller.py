@@ -22,7 +22,7 @@ class VulnerableController(Node):
             self.feedback_callback, 10)
         # Command torque to robot (via effort_controller)
         self.pub_command = self.create_publisher(
-            Float64MultiArray, '/effort_controllers/commands', 10)
+            Float64MultiArray, '/effort_controller/commands', 10)
         # Publishing ACTUAL torque to IDS (closes security blind spot)
         self.pub_torque = self.create_publisher(
             Float64MultiArray, '/vulnerable_controller/torque', 10)

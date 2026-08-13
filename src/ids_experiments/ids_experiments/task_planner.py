@@ -92,12 +92,26 @@ class TaskPlanner(Node):
         self.arm_.publish(traj_msg)
 
     def grab_cube(self):
-        self.get_logger().info("Magnet ON - Cube Grabbed")
-        os.system("gz topic -t /gripper/attach -m gz.msgs.Empty -p ' '")
-    
+        self.get_logger().info("Magnet ON")
+        result = subprocess.run(
+            "gz topic -t /gripper/attach -m gz.msgs.Empty -p ' '",
+            shell=True, capture_output=True, text=True)
+        if result.returncode != 0:
+            self.get_logger().warn(f"Attach failed: {result.stderr.strip()}")
+        else:
+            self.cube_attached = True
+
     def drop_cube(self):
-        self.get_logger().info("Magnet OFF - Cube Dropped")
-        os.system("gz topic -t /gripper/detach -m gz.msgs.Empty -p ' '")
+        if not getattr(self, 'cube_attached', False):
+            self.get_logger().warn("Drop called but cube was never attached — skipping detach")
+            return
+        self.get_logger().info("Magnet OFF")
+        result = subprocess.run(
+            "gz topic -t /gripper/detach -m gz.msgs.Empty -p ' '",
+            shell=True, capture_output=True, text=True)
+        if result.returncode != 0:
+            self.get_logger().warn(f"Detach failed: {result.stderr.strip()}")
+        self.cube_attached = False
     
     def generate_payload_spawn(self):
         # Randomizing the mass and inertia
@@ -109,7 +123,7 @@ class TaskPlanner(Node):
         # Creating a sdf for different mass
         sdf_content = f"""<?xml version="1.0" ?>
 <sdf version="1.8">
-    <model name="payload cube">
+    <model name="payload">
         <pose>0.5 0.0 0.05 0 0 0</pose>
         <link name="cube_link">
             <inertial>
@@ -150,24 +164,36 @@ class TaskPlanner(Node):
         file_path = "/workspaces/thesis/payload.sdf"
         with open(file_path, "w") as f:
             f.write(sdf_content)
-        # Removing the old playload
+        # --- REMOVE OLD PAYLOAD ---
         if self.is_first_spawn:
-            self.get_logger().info("First run: Skipping payload removal.")
+            self.get_logger().info("First run: skipping removal.")
             self.is_first_spawn = False
         else:
-            subprocess.run(
-                "gz service -s /world/empty/remove --reqtype gz.msgs.Entity --reptype gz.msgs.Boolean --req 'name: \"payload\", type: MODEL'",
-                shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
+            self.get_logger().info("Removing old payload...")
+            cmd = ("gz service -s /world/empty/remove "
+                   "--reqtype gz.msgs.Entity "
+                   "--reptype gz.msgs.Boolean "
+                   "--req 'name: \"payload\", type: MODEL'")
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode != 0 or "not found" in (result.stdout + result.stderr):
+                self.get_logger().warn(
+                    f"Removal failed (entity may already be gone): {result.stderr.strip()}")
+            else:
+                self.get_logger().info("Old payload removed.")
+            time.sleep(0.5)
+
+        # --- SPAWN NEW PAYLOAD ---
+        self.get_logger().info("Spawning new payload...")
+        cmd = (f"gz service -s /world/empty/create "
+               f"--reqtype gz.msgs.EntityFactory "
+               f"--reptype gz.msgs.Boolean "
+               f"--req 'sdf_filename: \"{file_path}\", name: \"payload\"'")
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if result.returncode != 0:
+            self.get_logger().error(f"Spawn FAILED: {result.stderr.strip()}")
+        else:
+            self.get_logger().info("Spawn succeeded.")
         time.sleep(0.5)
-        # Appearing the new payload
-        subprocess.run(
-            "gz service -s /world/empty/create" 
-            "--reqtype gz.msgs.EntityFactory" 
-            "--reptype gz.msgs.Boolean" 
-            f"--req 'sdf_filename: \"{file_path}\", name: \"payload\"'",
-            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
 
     def exp_loop(self):
         time.sleep(3.0) # Moment to initialize before looping
@@ -184,6 +210,7 @@ class TaskPlanner(Node):
             time.sleep(2.2)
             time.sleep(0.3)
             self.grab_cube()
+            self.cube_attached = True
             time.sleep(0.5)
             # With Payload
             self.publish_context(1)
@@ -199,11 +226,11 @@ class TaskPlanner(Node):
             self.move_arm(drop_angles, 2)
             time.sleep(2.5)
             self.drop_cube()
-            time.sleep(0.5)
+            time.sleep(1.0)
             # Drop
             self.publish_context(0)
             self.get_logger().info("Arm dropped the Payload...")
-            # self.move_arm([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 5)
+            self.move_arm([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 5)
             time.sleep(5.5)
             # Respawing
             self.generate_payload_spawn()
