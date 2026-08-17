@@ -14,7 +14,8 @@ namespace custom_gazebo_plugins
 FrictionDrift::FrictionDrift() :
     curr_friction_(0.0),
     max_friction_(15.0),
-    drift_rate_(0.005)
+    drift_rate_(0.0005),
+    delay_(100.0)
 {}
 
 void FrictionDrift::Configure(
@@ -39,6 +40,9 @@ void FrictionDrift::Configure(
     if (sdf->HasElement("max_friction")) {
         max_friction_ = sdf->Get<double>("max_friction");
     }
+    if (sdf->HasElement("delay")) { 
+        delay_ = sdf->Get<double>("delay");
+    }
     target_joint_ = model_.JointByName(ecm, joint_name);
     if (target_joint_ == gz::sim::kNullEntity)
     {
@@ -53,7 +57,8 @@ void FrictionDrift::Configure(
     }
     gzmsg << "[FrictionDrift] Attached to joint '" << joint_name 
           << "'. Degrading at rate=" << drift_rate_ 
-          << " Nms/(rad·s)/s, max=" << max_friction_ << std::endl;
+          << "'. Delay=" << delay_ << "s"
+          << "  MaxFric=" << max_friction_ << std::endl;
 }
 
 void FrictionDrift::PreUpdate(
@@ -61,8 +66,15 @@ void FrictionDrift::PreUpdate(
     gz::sim::EntityComponentManager &ecm)
 {
     if (info.paused) return;    // Do nothing if the sim is paused
-    double dt = std::chrono::duration<double>(info.dt).count();     // Convert the timestep to seconds
+    // Starting Drift
+    double sim_time = std::chrono::duration<double>(info.simTime).count();
+    if (sim_time < delay_)
+    {
+        curr_friction_ = 0.0;
+        return; 
+    }
     // Slowly Increasing Friction to max
+    double dt = std::chrono::duration<double>(info.dt).count();     // Convert the timestep to seconds
     if (curr_friction_ < max_friction_)
     {
         curr_friction_ += (drift_rate_ * dt);

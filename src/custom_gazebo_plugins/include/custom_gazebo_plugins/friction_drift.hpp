@@ -37,6 +37,7 @@ private:
     double curr_friction_;
     double max_friction_;
     double drift_rate_;
+    double delay_;
     std::chrono::steady_clock::duration last_update_time_{std::chrono::steady_clock::duration::zero()};
 };
 }   // namespace custom_gazebo_plugins

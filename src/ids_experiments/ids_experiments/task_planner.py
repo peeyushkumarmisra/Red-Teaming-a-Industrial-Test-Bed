@@ -15,10 +15,10 @@ from builtin_interfaces.msg import Duration
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 CUBE_SRC_POS = "-0.5, 0.0, 0.05"
-CUBE_SRC_HOVER_POS = (-0.6, 0.0, 0.25)
+CUBE_SRC_HOVER_POS = (-0.5, 0.0, 0.25)
 CUBE_SRC_GRAB_POS = (-0.5, 0.0, 0.10)
-CUBE_DEST_HOVER_POS = (0.0, -0.6, 0.25)
-CUBE_DEST_DROP_POS = (0.0, -0.5, 0.10)
+CUBE_DEST_HOVER_POS = (0.0, 0.5, 0.25)
+CUBE_DEST_DROP_POS = (0.0, 0.5, 0.10)
 
 
 class TaskPlanner(Node):
@@ -253,6 +253,7 @@ def main(args=None):
     node = TaskPlanner()
     # First cube before loop begin
     node.generate_payload_spawn()
+    node.cube_attached = False
     time.sleep(1.0)
     try:
         rclpy.spin(node)

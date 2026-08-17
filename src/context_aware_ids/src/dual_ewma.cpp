@@ -42,7 +42,7 @@ bool DualEWMA::update(double residual)
             double varr = (sq_sum / burn_in_tot_) - (mean * mean);
             double std_dev = std::sqrt(std::max(0.0, varr));
             // Setting Threshold
-            Th_ = mean + 1.0 * std_dev;
+            Th_ = mean + 0.05 * std_dev;
             // Initializing both EWMAs to the steady-state mean
             Sf_ = mean;
             Ss_ = mean;

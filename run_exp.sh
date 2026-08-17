@@ -4,14 +4,14 @@
 set -e
 # Safety net: Tells the script to exit immediately if any command fails
 
-EXP=${1:-exp1}
+EXP="exp_combined"
 # Variable assignment with a default
 
 CSV="/workspaces/thesis/experiment_data.csv"
 PLOT="/workspaces/thesis/src/ids_bringup/launch/plot_csv.py"
 
 echo "Starting $EXP"
-ros2 launch ids_bringup run_.launch.py exp:="$EXP"
+ros2 launch ids_bringup run_.launch.py
 echo "Plotting"
 python3 "$PLOT" "$EXP"
 # Runs the Python 3 interpreter to execute the script stored in $PLOT

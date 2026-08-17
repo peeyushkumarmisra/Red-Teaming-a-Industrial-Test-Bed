@@ -14,12 +14,8 @@ IDSNode::IDSNode() : Node("ids_node"),
     attacked_(false),
     current_payload_context_(0),
     time_step_(0),
-    max_staleness_sec_(0.05)
+    max_staleness_sec_(30)
 {
-    // Matching simulation time to Gazebo
-    //this->declare_parameter<bool>("use_sim_time", true);
-    //this->set_parameter(rclcpp::Parameter("use_sim_time", true));
-    
     // Initializing ROS 2 Parameters 
     this->declare_parameter<std::string>("urdf_path","/workspaces/thesis/iiwa.urdf");
     std::string urdf_path = this->get_parameter("urdf_path").as_string();
@@ -212,8 +208,8 @@ void IDSNode::control_loop_callback()
     double residual_ = residual_raw;
     
     // Hard clip for absolute safety
-    const double CLIP = 100.0;
-    if (residual_ > CLIP) residual_ = CLIP;
+    //const double CLIP = 100.0;
+    //if (residual_ > CLIP) residual_ = CLIP;
 
     // Tripwire
     attacked_ = dual_ewma_->update(residual_);
