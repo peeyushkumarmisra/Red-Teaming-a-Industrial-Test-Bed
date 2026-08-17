@@ -14,7 +14,7 @@ IDSNode::IDSNode() : Node("ids_node"),
     attacked_(false),
     current_payload_context_(0),
     time_step_(0),
-    max_staleness_sec_(30)
+    max_staleness_sec_(0.05)
 {
     // Initializing ROS 2 Parameters 
     this->declare_parameter<std::string>("urdf_path","/workspaces/thesis/iiwa.urdf");
@@ -29,8 +29,8 @@ IDSNode::IDSNode() : Node("ids_node"),
     // Initializing Estimator & Tripwire
     ekf_estimator_ = std::make_unique<EKFEstimator>(
         robot_dynamics::RobotDynamics::getInstance().getModel());
-    /*Fast EWMA: 0.2 | Slow EWMA: 0.001 | Burn-in: 1000 samples*/
-    dual_ewma_ = std::make_unique<DualEWMA>(0.2, 0.001, 1000);
+    /*Fast EWMA: 0.2 | Slow EWMA: 0.001 | Burn-in: 10000 samples*/
+    dual_ewma_ = std::make_unique<DualEWMA>(0.2, 0.001, 3000);
     
     // Memory Allocation
     q_          = Eigen::VectorXd::Zero(7);
