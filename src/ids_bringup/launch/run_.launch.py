@@ -10,7 +10,7 @@ from launch.actions import ExecuteProcess, RegisterEventHandler
 
 # Config
 URDF                = '/workspaces/thesis/iiwa.urdf'
-PLOT_SCRIPT         = '/workspaces/thesis/src/ids_bringup/launch/plot_csv.py'
+PLOT_SCRIPT         = '/workspaces/thesis/src/ids_bringup/launch/results.py'
 # Timing (seconds)
 CONTROLLER_DELAY    = 10.0      # Wait before spawning ros2 controllers
 EXPERIMENT_DELAY    = 15.0      # Wait before starting task planner

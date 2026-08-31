@@ -20,12 +20,12 @@ public:
     double getFast() const;
     double getSlow() const;
 private:
-    double lambda_f_;   // Fast learning rate
-    double lambda_s_;   // Slow learning rate
-    double Sf_;         // Fast EWMA state
-    double Ss_;         // Slow EWMA state
-    double Th_;         // Dynamic threshold during burn-in
-    double curr_delta_; // |Sf - Ss|
+    double lambda_f_;       // Fast learning rate
+    double lambda_s_;       // Slow learning rate
+    double Sf_;             // Fast EWMA state
+    double Ss_;             // Slow EWMA state
+    double control_limit_;  // Dynamic threshold during burn-in
+    double curr_delta_;     // |Sf - Ss|
     int burn_in_counter_;
     int burn_in_tot_;
     std::vector<double> burn_in_buffer_;    // Stores residuals to calculate mean/variance

@@ -39,12 +39,14 @@ private:
     bool torque_received_{false};
     bool attacked_{false};
     int current_payload_context_{0};
+    int current_attack_truth_{0};
 
     // ROS2 Communication Interface
     rclcpp::Subscription<control_msgs::msg::JointTrajectoryControllerState>::SharedPtr state_sub_;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_sub_;
     rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr context_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr torque_sub_;
+    rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr truth_sub_;
     
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr alarm_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr residual_pub_;

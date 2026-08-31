@@ -29,8 +29,8 @@ IDSNode::IDSNode() : Node("ids_node"),
     // Initializing Estimator & Tripwire
     ekf_estimator_ = std::make_unique<EKFEstimator>(
         robot_dynamics::RobotDynamics::getInstance().getModel());
-    /*Fast EWMA: 0.2 | Slow EWMA: 0.001 | Burn-in: 10000 samples*/
-    dual_ewma_ = std::make_unique<DualEWMA>(0.2, 0.001, 3000);
+    /*Fast EWMA: 0.2 | Slow EWMA: 0.005 | Burn-in: 3000 samples*/
+    dual_ewma_ = std::make_unique<DualEWMA>(0.2, 0.005, 3000);
     
     // Memory Allocation
     q_          = Eigen::VectorXd::Zero(7);
@@ -67,6 +67,9 @@ IDSNode::IDSNode() : Node("ids_node"),
         "/ids/residual", 10);
     delta_pub_      = this->create_publisher<std_msgs::msg::Float64>(
         "/ids/ewma_delta", 10);
+    truth_sub_      = this->create_subscription<std_msgs::msg::Int8>(
+        "/attack_truth", 10, [this](const std_msgs::msg::Int8::SharedPtr msg)
+        {current_attack_truth_ = msg->data;});
     
     // For recoading the data
     csv_file_.open("/workspaces/thesis/experiment_data.csv");
@@ -76,7 +79,7 @@ IDSNode::IDSNode() : Node("ids_node"),
         csv_file_ << "TimeStep,Context,"
                   << "qd_norm,tau_actual_norm,tau_planned_norm,"
                   << "p_norm,r_norm,residual_raw,residual_clipped,"
-                  << "EWMA_Fast,EWMA_Slow,EWMA_Delta,Threshold,Attack_Flag\n";
+                  << "EWMA_Fast,EWMA_Slow,EWMA_Delta,Threshold,Attack_Flag,Ground_Truth\n";
         csv_file_.flush(); 
     }
     timer_ = this->create_wall_timer(timer_period_,
@@ -146,6 +149,9 @@ void IDSNode::state_callback( const control_msgs::msg::JointTrajectoryController
                 {   d_qd_(j) = msg->reference.velocities[i];   }
                 if (msg->reference.accelerations.size() == msg->joint_names.size())
                 {   d_qdd_(j) = msg->reference.accelerations[i];}
+                if (msg->output.effort.size() == msg->joint_names.size())
+                {   tau_actual_(j) = msg->output.effort[i]; 
+                    torque_received_ = true; }
                 break;
             }
         }
@@ -256,7 +262,8 @@ void IDSNode::control_loop_callback()
                   << ewma_slow << ","
                   << ewma_delta << ","
                   << threshold << ","
-                  << (attacked_ ? 1 : 0) << "\n";
+                  << (attacked_ ? 1 : 0) << ","
+                  << current_attack_truth_ << "\n";
         csv_file_.flush();
     }
     time_step_++;

@@ -98,6 +98,15 @@ class TaskPlanner(Node):
         traj_msg.points.append(end_point)
         self.arm_.publish(traj_msg)
 
+    def force_detach_payload(self):
+        self.get_logger().info("Force-detaching payload (post-spawn)")
+        result = subprocess.run(
+            "gz topic -t /gripper/detach -m gz.msgs.Empty -p ' '",
+            shell=True, capture_output=True, text=True)
+        if result.returncode != 0:
+            self.get_logger().warn(f"Force detach failed: {result.stderr.strip()}")
+        self.cube_attached = False
+
     def grab_cube(self):
         self.get_logger().info("Magnet ON")
         result = subprocess.run(
@@ -200,10 +209,12 @@ class TaskPlanner(Node):
             self.get_logger().error(f"Spawn FAILED: {result.stderr.strip()}")
         else:
             self.get_logger().info("Spawn succeeded.")
+        self.force_detach_payload()
         time.sleep(0.5)
 
     def exp_loop(self):
         time.sleep(3.0) # Moment to initialize before looping
+        self.generate_payload_spawn()
         src_hover   = self.calc_ik(*CUBE_SRC_HOVER_POS)
         src_grab    = self.calc_ik(*CUBE_SRC_GRAB_POS)
         dest_hover  = self.calc_ik(*CUBE_DEST_HOVER_POS)
@@ -252,7 +263,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = TaskPlanner()
     # First cube before loop begin
-    node.generate_payload_spawn()
+    #node.generate_payload_spawn()
     node.cube_attached = False
     time.sleep(1.0)
     try:

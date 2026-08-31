@@ -1,8 +1,10 @@
 import rclpy
 import numpy as np
 from rclpy.node import Node
+from std_msgs.msg import Int8
 from sensor_msgs.msg import JointState
 
+ATTACK_NUMBER = 0.8
 class AttackerNode(Node):
     def __init__(self):
         super().__init__('attacker_node', parameter_overrides=[
@@ -16,6 +18,8 @@ class AttackerNode(Node):
         # Publish Spoofed Data
         self.pub_spoofed        = self.create_publisher(
             JointState, '/spoofed_joint_states', 10)
+        # Publish ground truth to the IDS node (to csv)
+        self.pub_truth = self.create_publisher(Int8, '/attack_truth', 10)
         # Attack Timing Parameters
         self.start_time         = self.get_clock().now().nanoseconds / 1e9
         self.first_attack_at    = 80.0   # first injection at 80 s
@@ -26,7 +30,7 @@ class AttackerNode(Node):
         self.attack_active      = False
         # Injecting offset to joint 4
         self.target_joint_index = 3
-        self.attack_offset      = 5
+        self.attack_offset      = ATTACK_NUMBER
 
     def truth_callback(self, msg):
         curr_time = self.get_clock().now().nanoseconds / 1e9
@@ -43,6 +47,10 @@ class AttackerNode(Node):
             self.attack_active = False
             self.get_logger().info(
                 f"Attack window ended at t={curr_time:.2f}s.")
+        # Publishing Ground Truth to IDS node
+        truth_msg = Int8()
+        truth_msg.data = 1 if self.attack_active else 0
+        self.pub_truth.publish(truth_msg)
         # Creating Spoofed Message
         spoofed_msg         = JointState()
         spoofed_msg.header  = msg.header

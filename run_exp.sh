@@ -8,7 +8,7 @@ EXP="exp_combined"
 # Variable assignment with a default
 
 CSV="/workspaces/thesis/experiment_data.csv"
-PLOT="/workspaces/thesis/src/ids_bringup/launch/plot_csv.py"
+PLOT="/workspaces/thesis/src/ids_bringup/launch/results.py"
 
 echo "Starting $EXP"
 ros2 launch ids_bringup run_.launch.py

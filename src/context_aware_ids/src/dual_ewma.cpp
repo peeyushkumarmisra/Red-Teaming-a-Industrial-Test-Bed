@@ -11,7 +11,7 @@ DualEWMA::DualEWMA(double lambda_fast, double lambda_slow, int burn_in) : lambda
     lambda_s_(lambda_slow),
     Sf_(0.0),
     Ss_(0.0),
-    Th_(0.0),
+    control_limit_(0.0),
     curr_delta_(0.0),
     burn_in_counter_(0),
     burn_in_tot_(burn_in),
@@ -42,22 +42,29 @@ bool DualEWMA::update(double residual)
             double varr = (sq_sum / burn_in_tot_) - (mean * mean);
             double std_dev = std::sqrt(std::max(0.0, varr));
             // Setting Threshold
-            Th_ = mean + 0.05 * std_dev;
+            double L = 3.0; // 3-Sigma Control Limit (set after multiple trial runs)
+            double asymptotic_std_dev = std_dev * std::sqrt(lambda_f_ / (2.0 - lambda_f_));
+            control_limit_ = L * asymptotic_std_dev;
+            // Failsafe in case of perfect zero variance during simulation burn-in
+            if (control_limit_ < 1e-4) control_limit_ = 1e-4;
             // Initializing both EWMAs to the steady-state mean
             Sf_ = mean;
             Ss_ = mean;
             armed_ = true;
-            std::cout << "[DualEWMA] Burn-in complete. Tripwire armed with Threshold: " << Th_ << std::endl;
+            std::cout << "[DualEWMA] Burn-in complete. Tripwire armed with Threshold: " << control_limit_ << std::endl;
             // Freeing the buffer memory
             burn_in_buffer_.clear();
             burn_in_buffer_.shrink_to_fit();
         }
         return false; // No Alarm yet so its normal
     }
-    Sf_ = lambda_f_ * residual + (1.0 - lambda_f_) * Sf_;   // Updating Fast EWMA
-    Ss_ = lambda_s_ * residual + (1.0 - lambda_s_) * Ss_;   // Updating Slow EWMA
+    Sf_ = lambda_f_ * residual + (1.0 - lambda_f_) * Sf_;   // Updating Fast EWMA for Attack
     curr_delta_ = std::fabs(Sf_ - Ss_);                     // Computing Absolute Delta
-    return curr_delta_ > Th_;                               // Return True if threshold is breached
+    bool is_attack = (curr_delta_ > control_limit_);
+    if (!is_attack) {
+        Ss_ = lambda_s_ * residual + (1.0 - lambda_s_) * Ss_;  // Updating Slow EWMA for Friction
+    }
+    return is_attack;
 }
 
 double DualEWMA::getCurrentDelta() const
@@ -69,7 +76,7 @@ double DualEWMA::getCurrentDelta() const
 double DualEWMA::getThreshold() const
 {
     std::lock_guard<std::mutex> lock(ewma_mutex_);
-    return Th_;
+    return Ss_ + control_limit_;
 }
 
 bool DualEWMA::isArmed() const
