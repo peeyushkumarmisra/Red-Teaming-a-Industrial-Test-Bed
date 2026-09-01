@@ -22,7 +22,7 @@ class AttackerNode(Node):
         self.pub_truth = self.create_publisher(Int8, '/attack_truth', 10)
         # Attack Timing Parameters
         self.start_time         = self.get_clock().now().nanoseconds / 1e9
-        self.first_attack_at    = 80.0   # first injection at 80 s
+        self.first_attack_at    = 50.0   # first injection at 50 s (After Burn-in time)
         self.attack_interval    = 17.0   # then every 17 s
         self.attack_duration    = 0.5    # how long each injection lasts (seconds)
         self.next_attack_time   = self.start_time + self.first_attack_at

@@ -42,7 +42,7 @@ bool DualEWMA::update(double residual)
             double varr = (sq_sum / burn_in_tot_) - (mean * mean);
             double std_dev = std::sqrt(std::max(0.0, varr));
             // Setting Threshold
-            double L = 3.0; // 3-Sigma Control Limit (set after multiple trial runs)
+            double L = 3.0; // Sigma Control Limit (set after multiple trial runs)
             double asymptotic_std_dev = std_dev * std::sqrt(lambda_f_ / (2.0 - lambda_f_));
             control_limit_ = L * asymptotic_std_dev;
             // Failsafe in case of perfect zero variance during simulation burn-in
