@@ -8,7 +8,7 @@
 # ==================================================================================================
 
 # ROS2 Jazzy (Ubuntu 24.04) without desktop tools.
-FROM ros:jazzy-ros-base
+FROM osrf/ros:jazzy-desktop
 
 # Non-root user whole IDS match a typical host user, hence mounted files keeps same owners
 ARG USERNAME=dev
