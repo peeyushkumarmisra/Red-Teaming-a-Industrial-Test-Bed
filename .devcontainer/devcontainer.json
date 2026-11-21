@@ -1,21 +1,30 @@
+// =============================================================================
+//  devcontainer.json - VS Code opens the robot container
+// -----------------------------------------------------------------------------
+//  VS Code ("Dev Containers: Reopen in Container") attaches to the `robot` service of
+//  compose.yaml and also starts the `ids` service, so the editor, the simulation and
+//  the IDS run on exactly the toolchain the results were produced with.
+//  The workspace is /ws (the repository's src/ and data/ are mounted there).
+// =============================================================================
+
 {
-    "name": "Dissertation (U-24.04)",
-    "build": {
-        "dockerfile": "Dockerfile"
-    },
-    "runArgs": [
-        "--net=host",
-        "-e",
-        "DISPLAY=host.docker.internal:0"
-    ],
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "ms-iot.vscode-ros",
-                "ms-vscode.cpptools",
-                "twxs.cmake"
-            ]
-        }
-    },
-    "remoteuser": "root"
+  "name": "thesis-robot",
+  "dockerComposeFile": ["../compose.yaml"],
+  "service": "robot",
+  // Start the IDS container too: experiments need both.
+  "runServices": ["robot", "ids"],
+  "workspaceFolder": "/ws",
+  "remoteUser": "dev",
+  // Keep the containers running when VS Code closes (long runs survive).
+  "shutdownAction": "none",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "ms-python.python"
+      ]
+    }
+  }
 }

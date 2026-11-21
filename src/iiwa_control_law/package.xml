@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   iiwa_control_law - one control law for the robot and the IDS
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   The IDS predicts the robot by running the very same control law the controller
+   runs. Keeping that law in one package means the two can never drift apart.
+  =============================================================================
+-->
+
+<package format="3">
+  <name>iiwa_control_law</name>
+  <version>1.2.0</version>
+  <description>Shared rigid-body model and joint control law for the KUKA iiwa, used by both the controller and the intrusion detection system.</description>
+  <maintainer email="im.pkm29@gmail.com">Piyush Mishra</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>eigen</depend>
+  <depend>pinocchio</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

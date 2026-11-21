@@ -1,0 +1,15 @@
+<!--
+  =============================================================================
+   iiwa_controllers.xml - pluginlib description
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Lets controller_manager load iiwa_controllers/ReferenceTrackingController.
+  =============================================================================
+-->
+
+<library path="iiwa_controllers">
+  <class name="iiwa_controllers/ReferenceTrackingController"
+         type="iiwa_controllers::ReferenceTrackingController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>Joint-space PD tracking of a 100 Hz reference with first-order hold, context-aware gravity feedforward, encoder model, halt input and a decimated measurement stream for the IDS.</description>
+  </class>
+</library>

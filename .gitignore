@@ -1,15 +1,18 @@
-# ROS 2 build folders
+# =============================================================================
+#  .gitignore - files Git must not track
+# -----------------------------------------------------------------------------
+#  colcon output (build/, install/, log/), recorded runs and calibrations (data/),
+#  caches, editor folders and rosbag files. Results are reproduced from the code and
+#  the documented runs; large binary recordings do not belong in the repository.
+# =============================================================================
+
 build/
 install/
 log/
-
-# VS Code settings
-.vscode/
-.venv
-
-# Python caches
+data/
 __pycache__/
 *.pyc
-
-# OS generated files
-.DS_Store
+.vscode/
+.venv/
+*.mcap
+*.db3

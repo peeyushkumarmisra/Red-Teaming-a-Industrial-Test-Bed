@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   iiwa_sim - Gazebo Harmonic simulation of the robot cell
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   KUKA LBR iiwa 14 description (launch-time xacro), ros2_control hardware block,
+   FrictionDrift wear plugin with ground truth, gripper, world and controller settings.
+   Mesh and model origin: see NOTICE.
+  =============================================================================
+-->
+
+<package format="3">
+  <name>iiwa_sim</name>
+  <version>1.2.0</version>
+  <description>Gazebo Harmonic simulation of the KUKA iiwa cell: launch-time xacro description, ros2_control block, FrictionDrift wear plugin with ground truth, world and controller configuration.</description>
+  <maintainer email="im.pkm29@gmail.com">Piyush Mishra</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>gz_sim_vendor</build_depend>
+  <build_depend>gz_plugin_vendor</build_depend>
+  <build_depend>gz_transport_vendor</build_depend>
+  <build_depend>gz_msgs_vendor</build_depend>
+
+  <exec_depend>gz_sim_vendor</exec_depend>
+  <exec_depend>gz_plugin_vendor</exec_depend>
+  <exec_depend>gz_transport_vendor</exec_depend>
+  <exec_depend>gz_msgs_vendor</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>gz_ros2_control</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>iiwa_controllers</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>pinocchio</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,27 @@
+# =============================================================================
+#  ids_thesis.yaml - the dissertation's design (namespace /ids_thesis)
+# -----------------------------------------------------------------------------
+#  Kept for a fair comparison on the same data: the model is driven by the commanded
+#  torque, there are no friction states, and only the fast channel decides. A setpoint
+#  attacker controls the commanded torque too, which is why this design misses the
+#  attack (finding M1).
+# =============================================================================
+
+/**:
+  ros__parameters:
+    use_sim_time: true
+    run_mode: armed
+    calibration_file: /ws/data/calibration/ids_thesis.yaml
+    calibration_duration: 120.0
+    arm_after_calibration: false
+    exit_after_calibration: false
+    warmup: 2.0
+    model_urdf: ""
+    # The dissertation's input: the torque the controller commanded.
+    input_source: commanded_torque
+    # No friction states: wear appears as disturbance.
+    estimator_mode: thesis
+    detector:
+      false_alarm_budget_per_hour: 0.125
+      debounce: 5
+      latch: true

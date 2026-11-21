@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<!--
+  =============================================================================
+   iiwa_sim.urdf.xacro - the complete simulated robot
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Expanded at launch time (no hand-edited generated URDF):
+   xacro iiwa_sim.urdf.xacro friction_profile:=wear
+   Arguments: friction_profile (none | nominal | wear | thesis), controllers_file,
+   friction_file, initial_positions_file, mesh_root.
+   The IDS reads the same description from /robot_description, so the model it uses
+   is the arm Gazebo simulates.
+  =============================================================================
+-->
+
+<robot name="kuka_iiwa" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="mesh_root" default="$(find iiwa_sim)"/>
+  <xacro:arg name="controllers_file" default="$(find iiwa_sim)/config/controllers.yaml"/>
+  <xacro:arg name="friction_file" default="$(find iiwa_sim)/config/friction.yaml"/>
+  <xacro:arg name="friction_profile" default="wear"/>
+  <xacro:arg name="initial_positions_file" default="$(find iiwa_sim)/config/initial_positions.yaml"/>
+
+  <xacro:property name="mesh_root" value="$(arg mesh_root)"/>
+  <xacro:property name="friction_profile" value="$(arg friction_profile)"/>
+  <xacro:property name="friction" value="${xacro.load_yaml('$(arg friction_file)')[friction_profile]}"/>
+  <xacro:property name="initial" value="${xacro.load_yaml('$(arg initial_positions_file)')['initial_positions']}"/>
+
+  <!-- Arm kinematics and inertia, ros2_control hardware, and Gazebo plugins. -->
+  <xacro:include filename="iiwa.urdf.xacro"/>
+  <xacro:include filename="iiwa.ros2_control.xacro"/>
+  <xacro:include filename="iiwa.gazebo.xacro"/>
+
+  <link name="world"/>
+
+  <!-- The arm is fixed to the world at the origin. -->
+  <xacro:iiwa parent="world" prefix="">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:iiwa>
+
+  <xacro:iiwa_ros2_control prefix="" initial="${initial}"/>
+
+  <xacro:iiwa_gazebo prefix="" controllers_file="$(arg controllers_file)" friction="${friction}"/>
+
+</robot>

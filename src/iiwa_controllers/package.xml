@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   iiwa_controllers - joint tracking controller for the KUKA iiwa
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Follows the 100 Hz reference at 1 kHz with the shared control law, models the
+   encoders, can halt on an IDS alarm, and publishes the measurements the IDS needs.
+  =============================================================================
+-->
+
+<package format="3">
+  <name>iiwa_controllers</name>
+  <version>1.2.0</version>
+  <description>ros2_control reference-tracking controller for the KUKA iiwa: shared control law, encoder model, deadline guard, IDS halt input and measurement stream.</description>
+  <maintainer email="im.pkm29@gmail.com">Piyush Mishra</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>iiwa_control_law</depend>
+  <depend>ids_interfaces</depend>
+  <depend>controller_interface</depend>
+  <depend>hardware_interface</depend>
+  <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>realtime_tools</depend>
+  <depend>std_msgs</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ids_core</test_depend>
+  <test_depend>controller_manager</test_depend>
+  <test_depend>ros2_control_test_assets</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

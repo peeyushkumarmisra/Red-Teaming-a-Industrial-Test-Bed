@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   ids_core - the physics-informed intrusion detection algorithm
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Closed-loop model of the arm, extended Kalman filter, Dual-EWMA statistics,
+   detector, limit selection and calibration. No ROS inside: see ids_ros for the node.
+  =============================================================================
+-->
+
+<package format="3">
+  <name>ids_core</name>
+  <version>1.2.0</version>
+  <description>ROS-independent core of the physics-informed intrusion detection system: closed-loop EKF, Dual-EWMA detector and calibration.</description>
+  <maintainer email="im.pkm29@gmail.com">Piyush Mishra</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>iiwa_control_law</depend>
+  <depend>eigen</depend>
+  <depend>pinocchio</depend>
+  <depend>yaml-cpp</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

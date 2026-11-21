@@ -1,0 +1,41 @@
+# =============================================================================
+#  bridge.yaml - topics bridged between Gazebo and ROS 2
+# -----------------------------------------------------------------------------
+#  /clock (simulation time for every ROS node), the gripper commands and state, and the
+#  friction ground truth. Joint states and torques go through gz_ros2_control instead.
+# =============================================================================
+
+# Simulation time: every node runs with use_sim_time.
+- ros_topic_name: /clock
+  gz_topic_name: /clock
+  ros_type_name: rosgraph_msgs/msg/Clock
+  gz_type_name: gz.msgs.Clock
+  direction: GZ_TO_ROS
+
+# Planner -> gripper (ROS to Gazebo).
+- ros_topic_name: /gripper/attach
+  gz_topic_name: /gripper/attach
+  ros_type_name: std_msgs/msg/Empty
+  gz_type_name: gz.msgs.Empty
+  direction: ROS_TO_GZ
+
+- ros_topic_name: /gripper/detach
+  gz_topic_name: /gripper/detach
+  ros_type_name: std_msgs/msg/Empty
+  gz_type_name: gz.msgs.Empty
+  direction: ROS_TO_GZ
+
+# Gripper -> planner start-up gate (B16).
+- ros_topic_name: /gripper/state
+  gz_topic_name: /gripper/state
+  ros_type_name: std_msgs/msg/String
+  gz_type_name: gz.msgs.StringMsg
+  direction: GZ_TO_ROS
+
+# Wear ground truth: 7 coefficients, then 7 applied torques (no header: time
+# it by the bag's receive stamp, which is sim time).
+- ros_topic_name: /sim/friction_truth
+  gz_topic_name: /sim/friction_truth
+  ros_type_name: ros_gz_interfaces/msg/Float32Array
+  gz_type_name: gz.msgs.Float_V
+  direction: GZ_TO_ROS

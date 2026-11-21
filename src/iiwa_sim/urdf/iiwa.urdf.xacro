@@ -1,0 +1,126 @@
+<?xml version="1.0"?>
+<!--
+  =============================================================================
+   iiwa.urdf.xacro - KUKA LBR iiwa 14 R820 kinematics and inertia
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Links, joints, limits and inertial parameters (origin: ICube iiwa_description, see
+   NOTICE). No damping or friction tags: friction comes only from FrictionDrift, so
+   it is known exactly. The flange (link_7) has no collision geometry, so the
+   gripped part never collides with it.
+  =============================================================================
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- One link: visual mesh, collision mesh and inertia. -->
+  <xacro:macro name="iiwa_link" params="name mesh mass ixx iyy izz com">
+    <link name="${name}">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="file://${mesh_root}/meshes/lbr_iiwa_14_r820/visual/${mesh}.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="file://${mesh_root}/meshes/lbr_iiwa_14_r820/collision/${mesh}.stl"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="${com}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${ixx}" ixy="0" ixz="0" iyy="${iyy}" iyz="0" izz="${izz}"/>
+      </inertial>
+    </link>
+  </xacro:macro>
+
+  <!-- One revolute joint with its effort, position and velocity limits. -->
+  <xacro:macro name="iiwa_joint" params="name parent child xyz axis effort limit velocity">
+    <joint name="${name}" type="revolute">
+      <origin rpy="0 0 0" xyz="${xyz}"/>
+      <parent link="${parent}"/>
+      <child link="${child}"/>
+      <axis xyz="${axis}"/>
+      <limit effort="${effort}" lower="${-limit}" upper="${limit}" velocity="${velocity}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="iiwa" params="parent prefix *origin">
+    <material name="gray">
+      <color rgba="0.5 0.5 0.5 1.0"/>
+    </material>
+
+    <link name="${prefix}iiwa_base"/>
+
+    <joint name="${prefix}iiwa_root_joint" type="fixed">
+      <xacro:insert_block name="origin"/>
+      <parent link="${parent}"/>
+      <child link="${prefix}iiwa_base"/>
+    </joint>
+
+    <joint name="${prefix}iiwa_base_joint" type="fixed">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <parent link="${prefix}iiwa_base"/>
+      <child link="${prefix}link_0"/>
+    </joint>
+
+    <xacro:iiwa_link name="${prefix}link_0" mesh="base_link" mass="5"
+                     ixx="0.05" iyy="0.06" izz="0.03" com="-0.1 0 0.07"/>
+    <xacro:iiwa_link name="${prefix}link_1" mesh="link_1" mass="4"
+                     ixx="0.1" iyy="0.09" izz="0.02" com="0 -0.03 0.12"/>
+    <xacro:iiwa_link name="${prefix}link_2" mesh="link_2" mass="4"
+                     ixx="0.05" iyy="0.018" izz="0.044" com="0.0003 0.059 0.042"/>
+    <xacro:iiwa_link name="${prefix}link_3" mesh="link_3" mass="3"
+                     ixx="0.08" iyy="0.075" izz="0.01" com="0 0.03 0.13"/>
+    <xacro:iiwa_link name="${prefix}link_4" mesh="link_4" mass="2.7"
+                     ixx="0.03" iyy="0.01" izz="0.029" com="0 0.067 0.034"/>
+    <xacro:iiwa_link name="${prefix}link_5" mesh="link_5" mass="1.7"
+                     ixx="0.02" iyy="0.018" izz="0.005" com="0.0001 0.021 0.076"/>
+    <xacro:iiwa_link name="${prefix}link_6" mesh="link_6" mass="1.8"
+                     ixx="0.025" iyy="0.0136" izz="0.0247" com="0 0.0006 0.0004"/>
+
+    <!-- Flange: visual only (no collision), so the held part does not collide with it. -->
+    <link name="${prefix}link_7">
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0.07"/>
+        <material name="gray"/>
+        <geometry>
+          <mesh filename="file://${mesh_root}/meshes/lbr_iiwa_14_r820/visual/link_7_2.stl"
+                scale="0.001 0.001 0.001"/>
+        </geometry>
+      </visual>
+      <inertial>
+        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <mass value="${0.3 / 0.308 * 0.44}"/>
+        <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+      </inertial>
+    </link>
+    <!-- Tool frame at the flange face: the planner places it on top of the part to grab it. -->
+    <link name="${prefix}tool0"/>
+
+    <xacro:iiwa_joint name="${prefix}joint_a1" parent="${prefix}link_0" child="${prefix}link_1"
+                      xyz="0 0 0" axis="0 0 1" effort="320" limit="2.9668" velocity="1.4834"/>
+    <xacro:iiwa_joint name="${prefix}joint_a2" parent="${prefix}link_1" child="${prefix}link_2"
+                      xyz="-0.00043624 0 0.36" axis="0 1 0" effort="320" limit="2.0942"
+                      velocity="1.4834"/>
+    <xacro:iiwa_joint name="${prefix}joint_a3" parent="${prefix}link_2" child="${prefix}link_3"
+                      xyz="0 0 0" axis="0 0 1" effort="176" limit="2.9668" velocity="1.7452"/>
+    <xacro:iiwa_joint name="${prefix}joint_a4" parent="${prefix}link_3" child="${prefix}link_4"
+                      xyz="0.00043624 0 0.42" axis="0 -1 0" effort="176" limit="2.0942"
+                      velocity="1.3089"/>
+    <xacro:iiwa_joint name="${prefix}joint_a5" parent="${prefix}link_4" child="${prefix}link_5"
+                      xyz="0 0 0" axis="0 0 1" effort="110" limit="2.9668" velocity="2.2688"/>
+    <xacro:iiwa_joint name="${prefix}joint_a6" parent="${prefix}link_5" child="${prefix}link_6"
+                      xyz="0 0 0.4" axis="0 1 0" effort="40" limit="2.0942" velocity="2.356"/>
+    <xacro:iiwa_joint name="${prefix}joint_a7" parent="${prefix}link_6" child="${prefix}link_7"
+                      xyz="0 0 0" axis="0 0 1" effort="40" limit="3.0541" velocity="2.356"/>
+
+    <joint name="${prefix}joint_a7-tool0" type="fixed">
+      <origin rpy="0 0 0" xyz="0 0 0.154"/>
+      <parent link="${prefix}link_7"/>
+      <child link="${prefix}tool0"/>
+    </joint>
+  </xacro:macro>
+
+</robot>

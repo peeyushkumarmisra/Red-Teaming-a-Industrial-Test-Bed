@@ -1,0 +1,13 @@
+iiwa_sim
+
+The meshes under meshes/lbr_iiwa_14_r820 and the kinematic and inertial
+parameters in urdf/iiwa.urdf.xacro come from the iiwa_description package of
+ICube-Robotics/iiwa_ros2 (maintainer M. Bednarczyk, Université de Strasbourg),
+distributed under the Apache License, Version 2.0, as vendored in v1.0.0 of this
+repository. Unused files (MoveIt configuration, SRDF, RViz layouts, the Flex
+Fellow cart and duplicate meshes) were removed; the link_7 flange mesh and mass
+are the v1.0.0 modifications. The macro was restructured, the link_7 collision
+geometry was removed, and the Gazebo and ros2_control blocks were rewritten.
+
+The Apache License, Version 2.0 is available at
+http://www.apache.org/licenses/LICENSE-2.0

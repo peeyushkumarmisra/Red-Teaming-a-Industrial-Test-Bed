@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<!--
+  =============================================================================
+   iiwa.ros2_control.xacro - hardware interface for gz_ros2_control
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Each joint: effort command (the controller sends torque), position, velocity and
+   effort state. The initial position puts the arm at its home pose at spawn.
+  =============================================================================
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="iiwa_r2c_joint" params="name initial">
+    <joint name="${name}">
+      <command_interface name="effort"/>
+      <state_interface name="position">
+        <param name="initial_value">${initial}</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="iiwa_ros2_control" params="prefix initial">
+    <ros2_control name="GazeboSimSystem" type="system">
+      <hardware>
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </hardware>
+      <xacro:iiwa_r2c_joint name="${prefix}joint_a1" initial="${initial[0]}"/>
+      <xacro:iiwa_r2c_joint name="${prefix}joint_a2" initial="${initial[1]}"/>
+      <xacro:iiwa_r2c_joint name="${prefix}joint_a3" initial="${initial[2]}"/>
+      <xacro:iiwa_r2c_joint name="${prefix}joint_a4" initial="${initial[3]}"/>
+      <xacro:iiwa_r2c_joint name="${prefix}joint_a5" initial="${initial[4]}"/>
+      <xacro:iiwa_r2c_joint name="${prefix}joint_a6" initial="${initial[5]}"/>
+      <xacro:iiwa_r2c_joint name="${prefix}joint_a7" initial="${initial[6]}"/>
+    </ros2_control>
+  </xacro:macro>
+
+</robot>
