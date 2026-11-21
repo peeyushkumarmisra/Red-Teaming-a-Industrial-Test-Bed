@@ -1,14 +1,3 @@
-# =============================================================================
-#  cli.py - the five commands
-# -----------------------------------------------------------------------------
-#  export_run RUN...                bag -> export.npz in each run folder
-#  evaluate RUN... --out DIR        score the live IDS instances, figures, report
-#  compare_baselines RUN... --train RUN --out DIR
-#                                   live IDS, replays and baselines side by side
-#  replay_run RUN --out OUT.npz (--calibrate C | --calibration C) [--set n=v]
-#  split_legacy EXPORT --out DIR    split a v1.2 multi-run export
-#  RUN may be a run folder, a folder of run folders, or an export .npz.
-# =============================================================================
 
 import argparse
 import math
@@ -17,7 +6,7 @@ import sys
 
 import numpy as np
 
-from ids_evaluation import bag, layout, pipeline, plots, replay, report
+from ids_evaluation import bag, halt, layout, pipeline, plots, replay, report, security
 
 
 def _campaign_default():
@@ -29,8 +18,6 @@ def _campaign_default():
         return None
 
 
-# Without --urdf, expand the installed iiwa_sim description with xacro: the same robot model
-# the IDS uses.
 def _urdf(path):
     if path:
         with open(path) as f:
@@ -53,8 +40,6 @@ def _inputs(parser):
                         help='keep runs whose summary reports torque saturation')
 
 
-# --limits fills limits missing from old exports; saturated runs are dropped unless
-# --include-saturated.
 def _load(args):
     exports = [pipeline.load_run(p, args.calibration_dir) for p in pipeline.expand(args.paths)]
     if args.legacy:
@@ -75,7 +60,6 @@ def _dropped_note(dropped):
     return ([f'excluded for torque saturation: {", ".join(dropped)}'] if dropped else [])
 
 
-# Whole run, attack window zoom, and friction for nominal runs.
 def _figures(out_dir, export, series, zoom=True):
     name = pipeline.run_name(export)
     start = pipeline.start_of(export)
@@ -106,6 +90,31 @@ def _figures(out_dir, export, series, zoom=True):
                               f'{name}: friction estimate vs truth', path)
         files.append(path)
     return files
+
+
+def cell_sections(out_dir, exports):
+    extra = []
+    rows = [security.security_row(e) for e in exports if security.wanted(e)]
+    if rows:
+        report.write_csv(os.path.join(out_dir, 'security.csv'), rows, security.FIELDS)
+        extra.append(('Security outcome', report.table(
+            rows, security.FIELDS,
+            ('run', 'attacker', 'credentials', 'SROS2 on the attacker', 'trusted samples '
+             'received', 'samples published', 'matched readers (max)', 'rogue samples '
+             'recorded in the cell', 'v2 alarms', 'outcome'))
+            + '\n\nCounts come from the attacker node report (data/cell/reports); rogue '
+              'samples are messages marked frame_id "rogue" that reached the recorder, '
+              'a legitimate subscriber inside the cell.'))
+    rows = [r for r in (halt.halt_summary(e) for e in exports) if r is not None]
+    if rows:
+        report.write_csv(os.path.join(out_dir, 'halt.csv'), rows, halt.FIELDS)
+        extra.append(('Halt chain', report.table(
+            rows, halt.FIELDS,
+            ('run', 'halt on alarm', 'v2 alarm (s)', 'alarm message in the cell (s)',
+             'first halted window (s)', 'alarm to halt (s)', 'held to the end', 'halted (s)',
+             'max joint speed 0.5 s after the halt (rad/s)', 'motion after the halt (rad)'))
+            + '\n\nTimes are sim time after the first PLC reference.'))
+    return extra
 
 
 def export_main(argv=None):
@@ -143,12 +152,11 @@ def evaluate_main(argv=None):
                                notes=[f'grace {args.grace} s, tail {args.tail} s, detection '
                                       f'starts {pipeline.WARMUP} s after arming',
                                       *_dropped_note(dropped)],
-                               figures=figures)
+                               figures=figures, extra=cell_sections(args.out, exports))
     print(path)
     return 0
 
 
-# The training run may also be a test run; only its part after training is scored.
 def compare_main(argv=None):
     p = argparse.ArgumentParser(description='Compare the IDS with baseline detectors')
     _inputs(p)

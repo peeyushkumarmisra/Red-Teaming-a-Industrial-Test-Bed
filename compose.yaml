@@ -1,30 +1,22 @@
-# =============================================================================
-#  compose.yaml - the containers of the testbed
-# -----------------------------------------------------------------------------
-#  Two working services and five placeholders, on three networks that mirror an
-#  industrial cell:
-#  - robot: Gazebo, the robot controller, the PLC-style planner, the attacker (MitM)
-#    node, the run supervisor and the recorder.
-#  - ids: the intrusion detection system. It sits only on monitor_net, the trusted
-#    network, so it reads the PLC's reference before the attacker can change it.
-#  - plc, attacker, eng-ws, hmi, range: idle stubs (profile "planned") that later
-#    releases turn into the OT network (OpenPLC, Modbus, HMI, recording range).
-#  Start: `docker compose up -d robot ids`. Shell: `docker compose exec ids bash`.
-# =============================================================================
-
 name: thesis
 
-# Shared ROS 2 settings: one DDS domain and Cyclone DDS in every container.
 x-ros-env: &ros-env
-  ROS_DOMAIN_ID: "0"
   RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
 
-# The robot container has two networks. Cyclone DDS is told to use the monitor_net
-# address so the IDS (monitor_net only) can see the robot's topics (problem B17).
-x-monitor-dds: &monitor-dds
-  CYCLONEDDS_URI: '<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="10.203.20.0"/></Interfaces></General></Domain></CycloneDDS>'
+x-sros2: &sros2
+  ROS_SECURITY_KEYSTORE: /keystore
+  ROS_SECURITY_ENABLE: "true"
+  ROS_SECURITY_STRATEGY: Enforce
 
-# Template for the placeholder services: they only sleep until a later release fills them.
+x-cell-and-monitor-dds: &cell-and-monitor-dds
+  CYCLONEDDS_URI: '<CycloneDDS><Domain Id="10"><General><Interfaces><NetworkInterface address="10.203.10.0"/></Interfaces></General></Domain><Domain Id="20"><General><Interfaces><NetworkInterface address="10.203.20.0"/></Interfaces></General></Domain><Domain Id="30"><General><Interfaces><NetworkInterface address="10.203.10.0"/></Interfaces></General></Domain><Domain Id="31"><General><Interfaces><NetworkInterface address="10.203.10.0"/></Interfaces></General></Domain></CycloneDDS>'
+
+x-cell-dds: &cell-dds
+  CYCLONEDDS_URI: '<CycloneDDS><Domain Id="any"><General><Interfaces><NetworkInterface address="10.203.10.0"/></Interfaces></General></Domain></CycloneDDS>'
+
+x-monitor-dds: &monitor-dds
+  CYCLONEDDS_URI: '<CycloneDDS><Domain Id="any"><General><Interfaces><NetworkInterface address="10.203.20.0"/></Interfaces></General></Domain></CycloneDDS>'
+
 x-stub: &stub
   image: ros:jazzy-ros-core
   command: ["sleep", "infinity"]
@@ -33,8 +25,15 @@ x-stub: &stub
   environment:
     <<: *ros-env
 
+x-robot-image: &robot-image
+  image: thesis/robot:dev
+  pull_policy: never
+  init: true
+  stdin_open: true
+  tty: true
+  shm_size: 512mb
+
 services:
-  # Simulation side of the cell. GUI goes to an X server on Windows (DISPLAY).
   robot:
     build:
       context: .
@@ -43,31 +42,69 @@ services:
     container_name: thesis-robot
     hostname: robot
     init: true
-    # Gazebo and DDS use shared memory; the Docker default (64 MB) is too small.
     shm_size: 1gb
     stdin_open: true
     tty: true
     environment:
-      <<: [*ros-env, *monitor-dds]
+      <<: [*ros-env, *sros2, *cell-and-monitor-dds]
+      ROS_DOMAIN_ID: "10"
+      ROS_SECURITY_ENCLAVE_OVERRIDE: /cell/robot
       DISPLAY: host.docker.internal:0.0
       QT_X11_NO_MITSHM: "1"
       LIBGL_ALWAYS_SOFTWARE: "1"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      # Source is mounted (edit on Windows, build in Linux); build output stays in named
-      # volumes.
       - ./src:/ws/src
       - robot_build:/ws/build
       - robot_install:/ws/install
       - robot_log:/ws/log
-      # Runs, bags and calibration files land in the repository's data/ folder (git-ignored).
       - ./data:/ws/data
+      - ./keystore/enclaves/cell/robot:/keystore/enclaves/cell/robot:ro
     networks:
-      - control_net
-      - monitor_net
+      control_net:
+        ipv4_address: 10.203.10.10
+      monitor_net:
+        ipv4_address: 10.203.20.10
 
-  # The detector. It builds only up to ids_ros and has no Gazebo installed.
+  plc:
+    <<: *robot-image
+    container_name: thesis-plc
+    hostname: plc
+    command: ["sleep", "infinity"]
+    environment:
+      <<: [*ros-env, *sros2, *cell-and-monitor-dds]
+      ROS_DOMAIN_ID: "10"
+      ROS_SECURITY_ENCLAVE_OVERRIDE: /cell/plc
+    volumes:
+      - ./src:/ws/src:ro
+      - robot_install:/ws/install:ro
+      - ./data/cell:/ws/data/cell
+      - ./keystore/enclaves/cell/plc:/keystore/enclaves/cell/plc:ro
+    networks:
+      control_net:
+        ipv4_address: 10.203.10.20
+      monitor_net:
+        ipv4_address: 10.203.20.20
+
+  attacker:
+    <<: *robot-image
+    container_name: thesis-attacker
+    hostname: attacker
+    command: ["sleep", "infinity"]
+    environment:
+      <<: [*ros-env, *sros2, *cell-dds]
+      ROS_DOMAIN_ID: "10"
+      ROS_SECURITY_ENCLAVE_OVERRIDE: /attacker/implant
+    volumes:
+      - ./src:/ws/src:ro
+      - robot_install:/ws/install:ro
+      - ./data/cell:/ws/data/cell
+      - ./keystore/loot:/keystore:ro
+    networks:
+      control_net:
+        ipv4_address: 10.203.10.66
+
   ids:
     build:
       context: .
@@ -79,35 +116,32 @@ services:
     stdin_open: true
     tty: true
     environment:
-      <<: [*ros-env, *monitor-dds]
+      <<: [*ros-env, *sros2, *monitor-dds]
+      ROS_DOMAIN_ID: "20"
+      ROS_SECURITY_ENCLAVE_OVERRIDE: /monitor/ids
     volumes:
       - ./src:/ws/src
       - ids_build:/ws/build
       - ids_install:/ws/install
       - ids_log:/ws/log
       - ./data:/ws/data
+      - ./keystore/enclaves/monitor/ids:/keystore/enclaves/monitor/ids:ro
     networks:
-      - monitor_net
+      monitor_net:
+        ipv4_address: 10.203.20.30
 
-  # Placeholder for the OpenPLC controller (v1.8).
-  plc:
-    <<: *stub
-    container_name: thesis-plc
-    hostname: plc
-    networks:
-      - control_net
-      - monitor_net
-      - ops_net
+  keystore:
+    image: thesis/ids:dev
+    pull_policy: never
+    profiles: ["tools"]
+    network_mode: none
+    environment:
+      PYTHONPATH: /ws/src/ids_security
+    command: ["python3", "-m", "ids_security.make_keystore", "--out", "/keystore"]
+    volumes:
+      - ./src:/ws/src:ro
+      - ./keystore:/keystore
 
-  # Placeholder for the network attacker (v1.6 / v1.8). It sits on the control network only.
-  attacker:
-    <<: *stub
-    container_name: thesis-attacker
-    hostname: attacker
-    networks:
-      - control_net
-
-  # Placeholder for the engineering workstation that uploads PLC programs (v1.8).
   eng-ws:
     <<: *stub
     container_name: thesis-eng-ws
@@ -115,7 +149,6 @@ services:
     networks:
       - ops_net
 
-  # Placeholder for the operator HMI (v1.8).
   hmi:
     <<: *stub
     container_name: thesis-hmi
@@ -123,7 +156,6 @@ services:
     networks:
       - ops_net
 
-  # Placeholder for the recording and orchestration range (v1.8).
   range:
     <<: *stub
     container_name: thesis-range
@@ -132,16 +164,16 @@ services:
       - monitor_net
       - ops_net
 
-# control_net: robot and attackers. monitor_net: trusted network for the IDS.
-# ops_net: office side (HMI, engineering workstation).
 networks:
   control_net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.203.10.0/24
   monitor_net:
     driver: bridge
     ipam:
       config:
-        # Fixed subnet: CYCLONEDDS_URI above selects the interface by this address.
         - subnet: 10.203.20.0/24
   ops_net:
     driver: bridge

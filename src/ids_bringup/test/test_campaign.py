@@ -1,6 +1,3 @@
-# =============================================================================
-#  test_campaign.py - the installed campaign is complete and valid
-# =============================================================================
 
 import copy
 import os
@@ -37,7 +34,6 @@ def campaign():
     return load_campaign(CAMPAIGN)
 
 
-# 45 runs in the documented order.
 def test_installed_campaign_runs_nominal_then_every_joint_for_step_and_ramp(campaign):
     expected = ['nominal'] + [f'step_a{j}' for j in range(1, 8)] + \
         [f'ramp_a{j}' for j in range(1, 8)]
@@ -47,7 +43,6 @@ def test_installed_campaign_runs_nominal_then_every_joint_for_step_and_ramp(camp
     assert runs[:4] == [('nominal', 1), ('nominal', 2), ('nominal', 3), ('step_a1', 1)]
 
 
-# Every run passes the MitM's own validation.
 def test_every_scenario_and_seed_is_a_valid_mitm_scenario(campaign):
     for name, entry in campaign.entries.items():
         for seed in entry['seeds']:
@@ -55,7 +50,6 @@ def test_every_scenario_and_seed_is_a_valid_mitm_scenario(campaign):
             assert s.name == name and s.seed == seed
 
 
-# Attacks start after wear has begun.
 def test_family_members_attack_their_own_joint_during_drift(campaign):
     wear_delay = sibling_config('iiwa_sim', 'friction.yaml')['wear']['delay']
     for kind in ('step', 'ramp'):
@@ -114,7 +108,6 @@ def test_invalid_campaigns_are_rejected_with_the_offending_name(change, message)
         parse_campaign(data)
 
 
-# Every attack kind, the cover and the sweeps are available by name.
 def test_installed_campaign_offers_every_attack_kind_cover_and_sweeps(campaign):
     kinds = {}
     for name in campaign.entries:
@@ -132,7 +125,6 @@ def test_installed_campaign_offers_every_attack_kind_cover_and_sweeps(campaign):
                    for n in campaign.order)
 
 
-# 28 step-sweep runs, each a valid MitM scenario.
 def test_sweeps_expand_joints_times_magnitudes_and_can_be_planned():
     data = copy.deepcopy(SMALL)
     data['sweeps'] = {'probe': {'duration': 40.0, 'joints': [3, 6], 'magnitudes': [0.01, 0.02],
@@ -160,4 +152,31 @@ def test_invalid_sweeps_are_rejected(change, message):
                                 'attack': {'kind': 'step', 'start': 20.0, 'duration': 5.0}}}
     change(data)
     with pytest.raises(ValueError, match=message):
+        parse_campaign(data)
+
+
+def test_security_and_halt_scenarios(campaign):
+    expected = {'rogue_nocred': ('rogue', 'none', False),
+                'rogue_forged': ('rogue', 'forged', False),
+                'joint_states_spoof': ('spoof', 'stolen', False),
+                'joint_states_spoof_nocred': ('spoof', 'none', False),
+                'halt_step_a4': ('mitm', 'stolen', True),
+                'step_a4': ('mitm', 'stolen', False),
+                'nominal': ('none', 'stolen', False)}
+    for name, (role, credentials, halt) in expected.items():
+        s = parse_scenario(resolve(campaign, name, 1))
+        assert (s.attacker_role, s.credentials, s.halt_on_alarm) == (role, credentials, halt)
+    assert 'attacker' not in resolve(campaign, 'step_a4', 1)
+    assert resolve(campaign, 'halt_step_a4', 1)['halt_on_alarm'] is True
+
+
+def test_attacker_and_halt_keys_are_validated_in_families():
+    data = copy.deepcopy(SMALL)
+    data['families']['step']['attacker'] = {'role': 'rogue', 'credentials': 'forged'}
+    data['families']['step']['halt_on_alarm'] = True
+    c = parse_campaign(data)
+    s = parse_scenario(resolve(c, 'step_a2', 1))
+    assert (s.attacker_role, s.credentials, s.halt_on_alarm) == ('rogue', 'forged', True)
+    data['scenarios']['quiet']['attacker'] = {'role': 'mitm'}
+    with pytest.raises(ValueError, match='quiet'):
         parse_campaign(data)

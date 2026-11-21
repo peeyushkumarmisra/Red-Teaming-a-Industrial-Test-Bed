@@ -1,6 +1,3 @@
-# =============================================================================
-#  test_scenario.py - scenario validation
-# =============================================================================
 
 import copy
 
@@ -76,7 +73,6 @@ def test_defaults_fill_optional_fields():
     (('attacks', 1, 'start'), 175.0),
     (('extra',), 1),
 ])
-# Each broken field gives a clear error before any run starts.
 def test_invalid_scenarios_are_rejected(path, value):
     with pytest.raises(ValueError):
         parse_scenario(with_change(path, value))
@@ -91,7 +87,6 @@ def test_load_from_file(tmp_path):
     assert s.attacks[0].joints == (1,)
 
 
-# Every kind the attack library offers can be written in a scenario.
 def test_every_attack_kind_and_the_cover_flag_are_accepted():
     data = {'name': 'kinds', 'seed': 4, 'duration': 300.0, 'cover_torque': True, 'attacks': [
         {'kind': 'step', 'joint': 4, 'magnitude': 0.02, 'start': 10, 'duration': 5},
@@ -118,3 +113,39 @@ def test_every_attack_kind_and_the_cover_flag_are_accepted():
     assert s.attacks[8].magnitude == 0.005
     assert s.attacks[7].seed == 4
     assert s.attacks[5].lag == 4.0
+
+
+def test_attacker_defaults_follow_the_attacks():
+    s = parse_scenario(VALID)
+    assert (s.attacker_role, s.credentials, s.halt_on_alarm) == ('mitm', 'stolen', False)
+    quiet = parse_scenario(with_change(('attacks',), []))
+    assert quiet.attacker_role == 'none'
+    rogue = parse_scenario(with_change(('attacker',), {'role': 'rogue'}))
+    assert (rogue.attacker_role, rogue.credentials) == ('rogue', 'none')
+    spoof = parse_scenario(with_change(('attacker',), {'role': 'spoof', 'credentials': 'forged'}))
+    assert (spoof.attacker_role, spoof.credentials) == ('spoof', 'forged')
+    assert parse_scenario(with_change(('halt_on_alarm',), True)).halt_on_alarm
+
+
+@pytest.mark.parametrize('change,message', [
+    ((('attacker',), {'role': 'sniffer'}), 'attacker.role'),
+    ((('attacker',), {'role': 'mitm', 'credentials': 'borrowed'}), 'attacker.credentials'),
+    ((('attacker',), {'role': 'none'}), 'role other than none'),
+    ((('attacker',), {'role': 'rogue', 'extra': 1}), 'unknown attacker keys'),
+    ((('attacker',), 'mitm'), 'mapping'),
+    ((('halt_on_alarm',), 'yes'), 'halt_on_alarm'),
+])
+def test_invalid_attacker_settings(change, message):
+    with pytest.raises(ValueError, match=message):
+        parse_scenario(with_change(*change))
+
+
+def test_roles_need_attacks_and_the_cover_needs_the_mitm():
+    data = with_change(('attacks',), [])
+    data['attacker'] = {'role': 'rogue'}
+    with pytest.raises(ValueError, match='needs at least one attack'):
+        parse_scenario(data)
+    data = with_change(('cover_torque',), True)
+    data['attacker'] = {'role': 'rogue'}
+    with pytest.raises(ValueError, match='cover_torque needs the mitm role'):
+        parse_scenario(data)

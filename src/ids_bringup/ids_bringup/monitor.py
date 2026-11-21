@@ -1,14 +1,5 @@
-# =============================================================================
-#  monitor.py - is this run healthy, and what did the IDS do?
-# -----------------------------------------------------------------------------
-#  ROS-free bookkeeping for the run supervisor: run time from the first reference,
-#  status counts per IDS instance, first alarm, and torque saturation. A run with the
-#  arm at its torque limits in more than 1 % of windows is flagged as not nominal and
-#  must be excluded from evaluation (B21).
-# =============================================================================
 
 MODES = {0: 'waiting', 1: 'calibrating', 2: 'armed', 3: 'fault'}
-# Torque limits of the iiwa 14 (N*m), same as the controller's.
 EFFORT_LIMITS = (320.0, 320.0, 176.0, 176.0, 110.0, 40.0, 40.0)
 
 
@@ -24,6 +15,9 @@ class RunMonitor:
         self.saturation_warning = float(saturation_warning)
         self.measurements = 0
         self.saturated = 0
+        self.tracking_seen = False
+        self.halted_windows = 0
+        self.first_halt = None
         self.ids = {ns: {'status_messages': 0, 'alarm_samples': 0, 'first_alarm': None,
                          'modes': {}} for ns in namespaces}
 
@@ -46,11 +40,16 @@ class RunMonitor:
         self.references += 1
         return self.done
 
-    # Count windows in which any joint torque sits at its limit.
-    def on_measurement(self, efforts):
+    def on_measurement(self, efforts, halted=False, stamp=None):
         if not self.started:
             return
         self.measurements += 1
+        if not halted:
+            self.tracking_seen = True
+        elif self.tracking_seen:
+            self.halted_windows += 1
+            if self.first_halt is None and stamp is not None:
+                self.first_halt = round(stamp - self.first_reference, 3)
         if any(abs(e) >= limit * (1.0 - 1e-9) for e, limit in zip(efforts, self.effort_limits)):
             self.saturated += 1
 
@@ -58,7 +57,6 @@ class RunMonitor:
     def torque_saturation(self):
         return self.saturated / self.measurements if self.measurements else None
 
-    # Per IDS instance: messages, modes, alarm samples, first alarm time.
     def on_status(self, namespace, stamp, mode, alarm):
         s = self.ids[namespace]
         s['status_messages'] += 1
@@ -71,11 +69,12 @@ class RunMonitor:
 
     def progress(self):
         parts = [f't={self.elapsed:.0f}/{self.duration:.0f} s', f'references {self.references}']
+        if self.halted_windows:
+            parts.append(f'halted {self.halted_windows} windows from t={self.first_halt} s')
         for ns, s in self.ids.items():
             parts.append(f'{ns}: {s["status_messages"]} status, {s["alarm_samples"]} alarm')
         return ', '.join(parts)
 
-    # Plain-language hints that point at the missing piece.
     def warnings(self):
         out = []
         if not self.started:
@@ -93,7 +92,6 @@ class RunMonitor:
                 out.append(f'/{ns} reported FAULT: missing calibration or fingerprint mismatch')
         return out
 
-    # Contents of summary.yaml.
     def summary(self, status):
         return {
             'status': status,
@@ -104,6 +102,8 @@ class RunMonitor:
             'measurements': self.measurements,
             'torque_saturation': (None if self.torque_saturation is None
                                   else round(self.torque_saturation, 4)),
+            'halted_windows': self.halted_windows,
+            'first_halt': self.first_halt,
             'ids': self.ids,
             'warnings': self.warnings(),
         }

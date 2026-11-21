@@ -1,22 +1,3 @@
-# =============================================================================
-#  campaign.yaml - every experiment run, by name
-# -----------------------------------------------------------------------------
-#  defaults:  shared by all runs (friction wear, endless pick-and-place, 5 kg part,
-#             seeds 1-3).
-#  scenarios: single runs (smoke test, calibration, nominal, coordinated_a2a4,
-#             step_a4_cover).
-#  families:  one run per listed joint and attack kind (step and ramp on a1..a7; sine,
-#             scaling, freeze, replay, delay, noise and drift_mimic on a4).
-#  sweeps:    kind x joints x magnitudes, for minimum-detectable-attack curves; run with
-#             `run_campaign --only 'step_sweep_*'`.
-#  campaign:  the default order for `ros2 run ids_bringup run_campaign`
-#             (45 runs: nominal x 3, then step and ramp on 7 joints x 3 seeds).
-#  Times are seconds after the first trusted reference. Attacks start at 120 s, well
-#  after wear begins at 30 s, so the IDS must see the attack through the wear.
-#  v1.2 and v1.4 measured nominal, step_a4 and step_a4_cover with seed 1 only (see
-#  docs/v1.2.md and docs/v1.4.md); the other kinds and the sweeps are not yet run.
-# =============================================================================
-
 defaults:
   friction_profile: wear
   planner:
@@ -25,34 +6,52 @@ defaults:
   seeds: [1, 2, 3]
 
 scenarios:
-  # 60 s plumbing check (IDS not needed).
   smoke:
     duration: 60.0
     seeds: [1]
-  # Constant friction for 130 s: 2 s warm-up + 120 s recorded by the IDS.
   calibration:
     friction_profile: nominal
     duration: 130.0
     seeds: [1]
-  # No attack for 600 s under wear: measures false alarms.
   nominal:
     duration: 600.0
-  # Two joints at once, each with its own offset: hides the attack behind a plausible combined
-  # motion.
   coordinated_a2a4:
     duration: 180.0
     attacks:
       - {kind: coordinated, joints: [2, 4], magnitudes: [0.005, 0.005], start: 120.0,
          duration: 10.0}
-  # The step attack plus a falsified torque report (C24).
   step_a4_cover:
     duration: 180.0
     cover_torque: true
     attacks:
       - {kind: step, joint: 4, magnitude: 0.02, start: 120.0, duration: 10.0}
+  halt_step_a4:
+    duration: 180.0
+    halt_on_alarm: true
+    attacks:
+      - {kind: step, joint: 4, magnitude: 0.02, start: 120.0, duration: 10.0}
+  rogue_nocred:
+    duration: 180.0
+    attacker: {role: rogue, credentials: none}
+    attacks:
+      - {kind: step, joint: 4, magnitude: 0.02, start: 120.0, duration: 10.0}
+  rogue_forged:
+    duration: 180.0
+    attacker: {role: rogue, credentials: forged}
+    attacks:
+      - {kind: step, joint: 4, magnitude: 0.02, start: 120.0, duration: 10.0}
+  joint_states_spoof:
+    duration: 180.0
+    attacker: {role: spoof, credentials: stolen}
+    attacks:
+      - {kind: step, joint: 4, magnitude: 0.2, start: 120.0, duration: 10.0}
+  joint_states_spoof_nocred:
+    duration: 180.0
+    attacker: {role: spoof, credentials: none}
+    attacks:
+      - {kind: step, joint: 4, magnitude: 0.2, start: 120.0, duration: 10.0}
 
 families:
-  # 0.02 rad setpoint step for 10 s: the abrupt attack (dissertation's case).
   step:
     duration: 180.0
     joints: [1, 2, 3, 4, 5, 6, 7]
@@ -61,7 +60,6 @@ families:
       magnitude: 0.02
       start: 120.0
       duration: 10.0
-  # 0.001 rad/s for 30 s (0.03 rad in total): the slow, stealthy attack.
   ramp:
     duration: 180.0
     joints: [1, 2, 3, 4, 5, 6, 7]
@@ -70,7 +68,6 @@ families:
       magnitude: 0.001
       start: 120.0
       duration: 30.0
-  # Oscillating offset: 0.01 rad at 0.5 Hz.
   sine:
     duration: 180.0
     joints: [4]
@@ -80,7 +77,6 @@ families:
       frequency: 0.5
       start: 120.0
       duration: 10.0
-  # Motion 5 % larger than commanded, from the attack start.
   scaling:
     duration: 180.0
     joints: [4]
@@ -89,7 +85,6 @@ families:
       magnitude: 1.05
       start: 120.0
       duration: 10.0
-  # The setpoint stops at the attack start (the robot holds still).
   freeze:
     duration: 180.0
     joints: [4]
@@ -97,7 +92,6 @@ families:
       kind: freeze
       start: 120.0
       duration: 10.0
-  # Loops the 4 s of trusted setpoints before the attack.
   replay:
     duration: 180.0
     joints: [4]
@@ -106,7 +100,6 @@ families:
       lag: 4.0
       start: 120.0
       duration: 10.0
-  # Forwards each setpoint 0.2 s late.
   delay:
     duration: 180.0
     joints: [4]
@@ -115,7 +108,6 @@ families:
       lag: 0.2
       start: 120.0
       duration: 10.0
-  # Random offset, 0.002 rad standard deviation, seeded.
   noise:
     duration: 180.0
     joints: [4]
@@ -124,7 +116,6 @@ families:
       magnitude: 0.002
       start: 120.0
       duration: 10.0
-  # Offset that grows like viscous friction wear, to hide inside the friction the IDS expects.
   drift_mimic:
     duration: 180.0
     joints: [4]
@@ -134,8 +125,6 @@ families:
       start: 120.0
       duration: 30.0
 
-# Sweeps: every listed joint and magnitude becomes a run named <sweep>_a<joint>_m<magnitude>;
-#         not part of the default campaign.
 sweeps:
   step_sweep:
     duration: 180.0

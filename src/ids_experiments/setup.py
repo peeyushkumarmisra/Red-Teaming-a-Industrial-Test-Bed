@@ -1,8 +1,3 @@
-# =============================================================================
-#  setup.py - Python package and its two ROS executables
-# -----------------------------------------------------------------------------
-#  plc_planner (the trusted PLC) and mitm (the attacker), installed for `ros2 run`.
-# =============================================================================
 
 from setuptools import find_packages, setup
 
@@ -10,7 +5,7 @@ package_name = 'ids_experiments'
 
 setup(
     name=package_name,
-    version='1.4.0',
+    version='1.6.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
@@ -28,6 +23,8 @@ setup(
         'console_scripts': [
             'plc_planner = ids_experiments.plc_planner:main',
             'mitm = ids_experiments.mitm_node:main',
+            'rogue = ids_experiments.rogue_node:main',
+            'joint_states_spoof = ids_experiments.spoof_node:main',
         ],
     },
 )

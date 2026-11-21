@@ -1,0 +1,67 @@
+authority:
+  common_name: thesis-cell-ca
+  forged_common_name: rogue-ca
+  validity_days: 3650
+
+domains:
+  cell: 10
+  monitor: 20
+  probe: 30
+
+infrastructure:
+  publish: [/rosout, /parameter_events, ros_discovery_info, 'rq/*', 'rr/*']
+  subscribe: [/parameter_events, /clock, ros_discovery_info, 'rq/*', 'rr/*']
+
+enclaves:
+  /cell/robot:
+    store: keystore
+    ca: cell
+    domains:
+      cell:
+        deny_publish: [/plc/reference, /robot/reference, /attack/truth]
+        publish: ['*']
+        subscribe: ['*']
+      monitor:
+        publish: [/robot/measurement, /robot_description]
+        subscribe: [/ids/status, /ids/alarm, /ids_thesis/status, /ids_thesis/alarm]
+      probe:
+        publish: [/probe/pong]
+        subscribe: [/probe/ping]
+
+  /cell/plc:
+    store: keystore
+    ca: cell
+    domains:
+      cell:
+        publish: [/plc/reference, /gripper/attach, /gripper/detach]
+        subscribe: [/joint_states, /robot_description, /gripper/state]
+      monitor:
+        publish: [/plc/reference]
+      probe:
+        publish: [/probe/ping]
+        subscribe: [/probe/pong]
+
+  /monitor/ids:
+    store: keystore
+    ca: cell
+    domains:
+      monitor:
+        publish: [/ids/status, /ids/alarm, /ids_thesis/status, /ids_thesis/alarm]
+        subscribe: [/plc/reference, /robot/measurement, /robot_description, /ids/status,
+                    /ids/alarm, /ids_thesis/status, /ids_thesis/alarm]
+
+  /attacker/implant:
+    store: loot
+    ca: cell
+    domains:
+      cell:
+        publish: [/robot/reference, /robot/measurement, /attack/truth, /joint_states]
+        subscribe: [/plc/reference, /robot/measurement_raw, /joint_states]
+
+  /attacker/forged:
+    store: loot
+    ca: forged
+    domains:
+      cell:
+        publish: ['*']
+        subscribe: ['*']

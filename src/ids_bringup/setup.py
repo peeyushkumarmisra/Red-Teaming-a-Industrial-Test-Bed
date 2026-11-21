@@ -1,8 +1,3 @@
-# =============================================================================
-#  setup.py - Python package, launch files, configs and two executables
-# -----------------------------------------------------------------------------
-#  run_supervisor (ends and summarises one run) and run_campaign (runs many).
-# =============================================================================
 
 from glob import glob
 
@@ -12,7 +7,7 @@ package_name = 'ids_bringup'
 
 setup(
     name=package_name,
-    version='1.4.0',
+    version='1.6.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
@@ -32,6 +27,8 @@ setup(
         'console_scripts': [
             'run_supervisor = ids_bringup.supervisor_node:main',
             'run_campaign = ids_bringup.campaign_runner:main',
+            'cell_agent = ids_bringup.cell_agent:main',
+            'monitor_bridge = ids_bringup.monitor_bridge:main',
         ],
     },
 )

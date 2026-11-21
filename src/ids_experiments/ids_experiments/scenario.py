@@ -1,12 +1,3 @@
-# =============================================================================
-#  scenario.py - the scenario file format
-# -----------------------------------------------------------------------------
-#  A scenario says what one run does: name, seed, friction profile, duration, planner
-#  settings, the attacks and whether the torque report is covered. Invalid scenarios are
-#  rejected with a clear message before any simulation starts (bad joint, unknown kind,
-#  overlapping attacks, attack after the end). Joints are 1-based in the file (a1 = 1)
-#  and 0-based inside the code.
-# =============================================================================
 
 from dataclasses import dataclass, field
 import math
@@ -15,17 +6,18 @@ import yaml
 
 from ids_attacks.library import make_attack
 
-# Must match the profiles in iiwa_sim/config/friction.yaml.
 FRICTION_PROFILES = ('none', 'nominal', 'wear', 'thesis')
 PLANNER_DEFAULTS = {'cycles': 0, 'payload_mass': 5.0}
 SCENARIO_KEYS = {'name', 'seed', 'friction_profile', 'duration', 'planner', 'attacks',
-                 'cover_torque'}
+                 'cover_torque', 'attacker', 'halt_on_alarm'}
+ROLES = ('none', 'mitm', 'rogue', 'spoof')
+CREDENTIALS = ('stolen', 'none', 'forged')
+ATTACKER_KEYS = {'role', 'credentials'}
 ATTACK_KEYS = {'id', 'kind', 'joint', 'joints', 'magnitude', 'magnitudes', 'start', 'duration',
                'frequency', 'lag'}
 
 
 @dataclass(frozen=True)
-# A validated scenario.
 class Scenario:
     name: str
     seed: int
@@ -34,6 +26,9 @@ class Scenario:
     planner: dict = field(default_factory=dict)
     attacks: tuple = ()
     cover_torque: bool = False
+    attacker_role: str = 'none'
+    credentials: str = 'stolen'
+    halt_on_alarm: bool = False
 
 
 def _number(value, what):
@@ -42,7 +37,6 @@ def _number(value, what):
     return float(value)
 
 
-# Either joint (one) or joints (several, for coordinated attacks), never both.
 def _joints(a, i):
     if 'joint' in a and 'joints' in a:
         raise ValueError(f'attack {i}: give joint or joints, not both')
@@ -53,7 +47,6 @@ def _joints(a, i):
     return tuple(j - 1 for j in joints)
 
 
-# freeze, replay and delay need no magnitude; the scenario seed makes noise attacks repeatable.
 def _attack(a, i, seed, duration):
     if not isinstance(a, dict):
         raise ValueError(f'attack {i} must be a mapping')
@@ -80,7 +73,30 @@ def _attack(a, i, seed, duration):
     return attack
 
 
-# Check every field; times are seconds after the first trusted reference.
+def _attacker(data, has_attacks, cover):
+    spec = data.get('attacker')
+    if spec is None:
+        spec = {}
+    if not isinstance(spec, dict):
+        raise ValueError('attacker must be a mapping with role and credentials')
+    unknown = set(spec) - ATTACKER_KEYS
+    if unknown:
+        raise ValueError(f'unknown attacker keys: {sorted(unknown)}')
+    role = spec.get('role', 'mitm' if has_attacks else 'none')
+    if role not in ROLES:
+        raise ValueError(f'attacker.role must be one of {ROLES}')
+    credentials = spec.get('credentials', 'none' if role == 'rogue' else 'stolen')
+    if credentials not in CREDENTIALS:
+        raise ValueError(f'attacker.credentials must be one of {CREDENTIALS}')
+    if role == 'none' and has_attacks:
+        raise ValueError('attacks need an attacker role other than none')
+    if role != 'none' and not has_attacks:
+        raise ValueError(f'attacker role {role} needs at least one attack')
+    if cover and role != 'mitm':
+        raise ValueError('cover_torque needs the mitm role')
+    return role, credentials
+
+
 def parse_scenario(data):
     if not isinstance(data, dict):
         raise ValueError('scenario must be a mapping')
@@ -121,10 +137,14 @@ def parse_scenario(data):
             raise ValueError(f'attacks {first.event_id} and {second.event_id} overlap')
     if len({a.event_id for a in attacks}) != len(attacks):
         raise ValueError('attack ids must be unique')
-    return Scenario(name, seed, profile, duration, planner, tuple(attacks), cover)
+    role, credentials = _attacker(data, bool(attacks), cover)
+    halt = data.get('halt_on_alarm', False)
+    if not isinstance(halt, bool):
+        raise ValueError('halt_on_alarm must be true or false')
+    return Scenario(name, seed, profile, duration, planner, tuple(attacks), cover, role,
+                    credentials, halt)
 
 
-# Read and validate a scenario YAML file.
 def load_scenario(path):
     with open(path) as f:
         return parse_scenario(yaml.safe_load(f))

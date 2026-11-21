@@ -1,6 +1,3 @@
-# =============================================================================
-#  test_monitor.py - run health and IDS bookkeeping
-# =============================================================================
 
 from ids_bringup.monitor import RunMonitor
 
@@ -62,7 +59,6 @@ def test_summary_and_progress_report_the_run():
     assert m.progress() == 't=20/20 s, references 41, ids: 1 status, 0 alarm'
 
 
-# Runs with a blocked or collapsed arm are flagged (B21).
 def test_torque_saturation_is_counted_after_the_first_reference_and_flagged():
     m = RunMonitor(10.0, namespaces=(), saturation_warning=0.05)
     m.on_measurement([320.0, 0, 0, 0, 0, 0, 0])
@@ -81,3 +77,17 @@ def test_torque_saturation_is_counted_after_the_first_reference_and_flagged():
     summary = m.summary('complete')
     assert summary['torque_saturation'] == round(6 / 101, 4)
     assert len(summary['warnings']) == 1 and 'not nominal' in summary['warnings'][0]
+
+
+def test_halts_after_tracking_are_counted_with_the_first_halt_time():
+    m = RunMonitor(10.0, namespaces=())
+    m.on_reference(100.0)
+    for k in range(5):
+        m.on_measurement([0.0] * 7, halted=True, stamp=100.0 + 0.01 * k)
+    assert m.halted_windows == 0
+    m.on_measurement([0.0] * 7, halted=False, stamp=100.1)
+    for k in range(3):
+        m.on_measurement([0.0] * 7, halted=True, stamp=102.0 + 0.01 * k)
+    summary = m.summary('complete')
+    assert summary['halted_windows'] == 3 and summary['first_halt'] == 2.0
+    assert 'halted 3 windows from t=2.0 s' in m.progress()

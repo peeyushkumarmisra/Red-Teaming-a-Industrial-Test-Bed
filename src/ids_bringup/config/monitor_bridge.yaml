@@ -1,0 +1,8 @@
+monitor_domain: 20
+routes:
+  - {topic: /robot/measurement, type: ids_interfaces/msg/JointMeasurement, to: monitor}
+  - {topic: /robot_description, type: std_msgs/msg/String, to: monitor, latched: true}
+  - {topic: /ids/status, type: ids_interfaces/msg/IdsStatus, to: cell}
+  - {topic: /ids/alarm, type: std_msgs/msg/Bool, to: cell, latched: true}
+  - {topic: /ids_thesis/status, type: ids_interfaces/msg/IdsStatus, to: cell}
+  - {topic: /ids_thesis/alarm, type: std_msgs/msg/Bool, to: cell, latched: true}

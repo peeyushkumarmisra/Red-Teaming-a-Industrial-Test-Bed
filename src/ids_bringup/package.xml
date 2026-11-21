@@ -1,18 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
-<!--
-  =============================================================================
-   ids_bringup - launch files, runs and the experiment campaign
-  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   Starts the simulated cell, records each run, checks that the run was healthy, and
-   runs a whole campaign of scenarios unattended.
-  =============================================================================
--->
 
 <package format="3">
   <name>ids_bringup</name>
-  <version>1.4.0</version>
-  <description>Robot-service launch files for the simulated iiwa cell: Gazebo, controllers, bridges, payload spawn, scenario-driven experiment runs with rosbag recording, run supervision and the experiment campaign.</description>
+  <version>1.6.0</version>
+  <description>Robot-service launch files for the simulated iiwa cell: Gazebo, controllers, bridges, payload spawn, scenario-driven experiment runs with rosbag recording, run supervision, the experiment campaign, the cell agents that start the plc and attacker containers' nodes, and the monitor bridge between the cell and monitor DDS domains.</description>
   <maintainer email="im.pkm29@gmail.com">Piyush Mishra</maintainer>
   <license>Apache-2.0</license>
 
@@ -20,6 +12,8 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>xacro</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>

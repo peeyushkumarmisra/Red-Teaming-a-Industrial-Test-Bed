@@ -1,14 +1,3 @@
-# =============================================================================
-#  bag.py - export a run's bag to arrays
-# -----------------------------------------------------------------------------
-#  Reads the MCAP bag of one run folder with rosbag2_py and writes the arrays the
-#  evaluation needs into export.npz (cached in the run folder): measurements (and the
-#  raw ones of a covered run), trusted references, gripper commands, attack truth
-#  changes, friction truth, both IDS status streams, the calibration limits, and the
-#  run's summary and scenario. Also reads the multi-run exports made for v1.2.
-#  ROS modules are imported inside the functions, so the rest of the package (and its
-#  tests) works without ROS.
-# =============================================================================
 
 import json
 import math
@@ -17,12 +6,13 @@ import os
 import numpy as np
 import yaml
 
-from ids_evaluation import layout
+from ids_evaluation import layout, security
 
-# Everything recorded for evaluation (see ids_bringup runs.py).
 TOPICS = ('/robot/measurement', '/robot/measurement_raw', '/plc/reference', '/gripper/attach',
           '/gripper/detach', '/attack/truth', '/sim/friction_truth', '/ids/status',
-          '/ids_thesis/status')
+          '/ids_thesis/status', '/robot/reference', '/joint_states', '/ids/alarm')
+FOREIGN_TOPICS = ('/plc/reference', '/robot/reference', '/joint_states')
+ROGUE_MARK = 'rogue'
 CALIBRATION_FILES = (('v2', 'ids_v2.yaml'), ('thesis', 'ids_thesis.yaml'))
 
 
@@ -37,7 +27,6 @@ def _yaml(path):
         return yaml.safe_load(f)
 
 
-# Limits from the calibration files the live IDS used; NaN if the files are missing.
 def read_limits(calibration_dir):
     limits = {}
     for name, filename in CALIBRATION_FILES:
@@ -47,8 +36,6 @@ def read_limits(calibration_dir):
     return limits
 
 
-# Times are the message stamps (sim time); gripper commands carry no stamp, so their bag
-# receive time is used.
 def read_bag(bag_dir, end=math.inf):
     import rosbag2_py
     from rclpy.serialization import deserialize_message
@@ -60,7 +47,9 @@ def read_bag(bag_dir, end=math.inf):
     types = {t.name: t.type for t in reader.get_all_topics_and_types()}
     reader.set_filter(rosbag2_py.StorageFilter(topics=[t for t in TOPICS if t in types]))
     rows = {k: [] for k in ('measurement', 'measurement_raw', 'reference', 'gripper', 'attack',
-                            'friction_truth')}
+                            'friction_truth', 'alarm_topic')}
+    foreign = {t: 0 for t in FOREIGN_TOPICS}
+    last_alarm = None
     status = {name: ([], []) for name in layout.INSTANCES}
     instance_of = {topic: name for name, topic in layout.INSTANCES.items()}
     last_truth = None
@@ -72,6 +61,16 @@ def read_bag(bag_dir, end=math.inf):
                 rows['gripper'].append([rt, 1.0 if topic.endswith('attach') else 0.0])
             continue
         msg = deserialize_message(data, get_message(types[topic]))
+        if topic == '/ids/alarm':
+            if rt <= end and bool(msg.data) != last_alarm:
+                last_alarm = bool(msg.data)
+                rows['alarm_topic'].append([rt, float(msg.data)])
+            continue
+        if topic in foreign and msg.header.frame_id == ROGUE_MARK:
+            foreign[topic] += 1
+            continue
+        if topic in ('/robot/reference', '/joint_states'):
+            continue
         if topic == '/sim/friction_truth':
             values = list(msg.data)
             ft = _stamp(msg) if hasattr(msg, 'header') and msg.header.stamp.sec else rt
@@ -89,8 +88,6 @@ def read_bag(bag_dir, end=math.inf):
             rows['reference'].append([t, msg.seq, msg.payload_context, msg.payload_mass,
                                       *msg.position, *msg.velocity, *msg.acceleration])
         elif topic == '/attack/truth':
-            # Keep only the samples where the attack truth changes: start and end of each
-            # event.
             key = (bool(msg.attack_active), int(msg.event_id))
             if key != last_truth:
                 last_truth = key
@@ -107,16 +104,17 @@ def read_bag(bag_dir, end=math.inf):
     widths = {'measurement': layout.MEASUREMENT_COLUMNS,
               'measurement_raw': layout.MEASUREMENT_COLUMNS,
               'reference': layout.REFERENCE_COLUMNS, 'gripper': 2,
-              'attack': layout.ATTACK_COLUMNS, 'friction_truth': layout.FRICTION_TRUTH_COLUMNS}
+              'attack': layout.ATTACK_COLUMNS, 'friction_truth': layout.FRICTION_TRUTH_COLUMNS,
+              'alarm_topic': 2}
     out = {k: np.array(v, dtype=float).reshape(-1, widths[k]) for k, v in rows.items()}
+    out['foreign'] = np.array([foreign[t] if t in types else np.nan for t in FOREIGN_TOPICS],
+                              dtype=float)
     for name, (times, values) in status.items():
         out[f'{name}_t'] = np.array(times, dtype=float)
         out[name] = np.array(values, dtype=float).reshape(-1, layout.STATUS_COLUMNS)
     return out
 
 
-# Time zero of every evaluation is the first trusted reference (summary.yaml), as for the
-# attacks.
 def export_run(run_dir, limit=None, calibration_dir=None):
     summary = _yaml(os.path.join(run_dir, 'summary.yaml'))
     if not summary or summary.get('first_reference') is None:
@@ -130,6 +128,7 @@ def export_run(run_dir, limit=None, calibration_dir=None):
     out['summary'] = np.array(json.dumps(summary, default=str))
     out['scenario'] = np.array(json.dumps(_yaml(os.path.join(run_dir, 'scenario.yaml')) or {}))
     out['run'] = np.array(os.path.basename(os.path.normpath(run_dir)))
+    out['security'] = np.array(json.dumps(security.read_reports(run_dir), default=str))
     return out
 
 
@@ -137,7 +136,6 @@ def save_export(path, export):
     np.savez_compressed(path, **export)
 
 
-# v1.2 exports kept only (t, active); rebuild kind, joints and magnitude from the scenario.
 def _legacy_attack(attack, scenario, start):
     rows = []
     attacks = sorted((scenario or {}).get('attacks') or [], key=lambda a: a.get('start', 0.0))
@@ -163,7 +161,6 @@ def load_export(path):
     return normalise(out)
 
 
-# Bring any export to the current layout.
 def normalise(export):
     out = dict(export)
     for name in layout.INSTANCES:
@@ -176,8 +173,11 @@ def normalise(export):
     elif not attack.size:
         out['attack'] = np.zeros((0, layout.ATTACK_COLUMNS))
     for key, width in (('friction_truth', layout.FRICTION_TRUTH_COLUMNS),
-                       ('measurement_raw', layout.MEASUREMENT_COLUMNS), ('gripper', 2)):
+                       ('measurement_raw', layout.MEASUREMENT_COLUMNS), ('gripper', 2),
+                       ('alarm_topic', 2)):
         out.setdefault(key, np.zeros((0, width)))
+    out.setdefault('foreign', np.full(len(FOREIGN_TOPICS), np.nan))
+    out.setdefault('security', np.array('{}'))
     out.setdefault('limits', np.full(4, np.nan))
     out.setdefault('summary', np.array('{}'))
     out.setdefault('scenario', np.array('{}'))

@@ -1,11 +1,3 @@
-# =============================================================================
-#  runs.py - run folders, recording and clean-up
-# -----------------------------------------------------------------------------
-#  Each run writes /ws/data/runs/<date-time>_<scenario>_s<seed>/ with scenario.yaml,
-#  controllers.yaml (this run's seed and halt setting), summary.yaml and bag/ (MCAP).
-#  Also stops Gazebo servers left over from an earlier run, which otherwise capture
-#  the next run's controllers (B20).
-# =============================================================================
 
 import copy
 from dataclasses import dataclass
@@ -16,15 +8,12 @@ import time
 
 import yaml
 
-# Where the part is spawned: on the source pad, resting on the ground.
+from ids_bringup.cell import COVERED_MEASUREMENT, wiring
+
 PAYLOAD_POSE = (-0.5, 0.0, 0.05)
-# In a covered run the controller publishes here and the MitM relays a falsified copy to
-# /robot/measurement.
-COVERED_MEASUREMENT_TOPIC = '/robot/measurement_raw'
+COVERED_MEASUREMENT_TOPIC = COVERED_MEASUREMENT
 RUN_ID = re.compile(r'^\d{8}-\d{6}_(.+)_s(\d+)$')
 GZ_SIM = re.compile(r'(^|[\s/])gz sim(\s|$)')
-# Everything the evaluation needs: reference before and after the MitM,
-# measurements, attack truth, both IDS instances, friction truth, gripper.
 BAG_TOPICS = (
     '/plc/reference',
     '/robot/reference',
@@ -39,6 +28,7 @@ BAG_TOPICS = (
     '/gripper/attach',
     '/gripper/detach',
     '/gripper/state',
+    '/joint_states',
 )
 
 
@@ -55,19 +45,19 @@ def run_id(name, seed, now):
     return f'{now:%Y%m%d-%H%M%S}_{name}_s{seed}'
 
 
-# Copy the controller settings with this run's noise seed and halt setting; in a covered run
-# also move its measurement topic behind the MitM.
-def controllers_for_run(template, seed, halt_on_alarm, measurement_topic=None):
+def controllers_for_run(template, seed, halt_on_alarm, measurement_topic=None,
+                        reference_topic=None):
     config = copy.deepcopy(template)
     params = config['reference_tracking_controller']['ros__parameters']
     params['noise_seed'] = int(seed)
     params['halt_on_alarm'] = bool(halt_on_alarm)
     if measurement_topic:
         params['measurement_topic'] = measurement_topic
+    if reference_topic:
+        params['reference_topic'] = reference_topic
     return config
 
 
-# Create the run folder and its input files; rosbag creates bag/ itself.
 def prepare_run(output_dir, scenario, controllers_template, halt_on_alarm, now):
     directory = os.path.join(output_dir, run_id(scenario['name'], scenario['seed'], now))
     os.makedirs(directory)
@@ -80,10 +70,11 @@ def prepare_run(output_dir, scenario, controllers_template, halt_on_alarm, now):
         template = yaml.safe_load(f)
     with open(files.scenario_file, 'w') as f:
         yaml.safe_dump(scenario, f, sort_keys=False)
+    wires = wiring(scenario, halt_on_alarm)
     with open(files.controllers_file, 'w') as f:
-        topic = COVERED_MEASUREMENT_TOPIC if scenario.get('cover_torque') else None
-        yaml.safe_dump(controllers_for_run(template, scenario['seed'], halt_on_alarm, topic), f,
-                       sort_keys=False)
+        yaml.safe_dump(controllers_for_run(template, scenario['seed'], wires['halt_on_alarm'],
+                                           wires['measurement_topic'],
+                                           wires['reference_topic']), f, sort_keys=False)
     return files
 
 
@@ -95,7 +86,6 @@ def read_summary(directory):
         return yaml.safe_load(f)
 
 
-# A run counts as done only with a complete summary for the same scenario and seed.
 def completed_run(output_dir, name, seed):
     if not os.path.isdir(output_dir):
         return None
@@ -109,7 +99,6 @@ def completed_run(output_dir, name, seed):
     return None
 
 
-# Find running `gz sim` servers through /proc (matches the renamed server, B20).
 def gazebo_processes(proc_root='/proc', own_pid=None):
     own_pid = os.getpid() if own_pid is None else own_pid
     found = []
@@ -134,7 +123,6 @@ def _signal(kill, pids, sig):
             pass
 
 
-# SIGTERM, then SIGKILL whatever is still running; then wait for it to settle.
 def stop_gazebo(timeout=5.0, settle=2.0, find=gazebo_processes, kill=os.kill, sleep=time.sleep):
     pids = find()
     if not pids:

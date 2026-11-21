@@ -1,10 +1,3 @@
-# =============================================================================
-#  supervisor_node.py - ends a run on time and writes summary.yaml
-# -----------------------------------------------------------------------------
-#  Ends the run `duration` seconds of simulation time after the first trusted reference
-#  (the launch then shuts everything down), gives up if no reference arrives within
-#  start_timeout of wall time, prints progress, and writes the summary.
-# =============================================================================
 
 import time
 
@@ -21,7 +14,6 @@ def stamp_of(msg):
     return msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
 
 
-# Listens to the reference, the measurements and both IDS status topics.
 class RunSupervisor(Node):
 
     def __init__(self):
@@ -44,8 +36,9 @@ class RunSupervisor(Node):
         self._next_progress = self._period
         self._started = time.monotonic()
         self.create_subscription(JointReference, '/plc/reference', self._on_reference, 100)
-        self.create_subscription(JointMeasurement, '/robot/measurement',
-                                 lambda msg: self.monitor.on_measurement(msg.effort_applied), 100)
+        self.declare_parameter('measurement_topic', '/robot/measurement')
+        self.create_subscription(JointMeasurement, self.get_parameter('measurement_topic').value,
+                                 self._on_measurement, 100)
         for ns in namespaces:
             self.create_subscription(IdsStatus, f'/{ns}/status',
                                      lambda msg, ns=ns: self._on_status(ns, msg), 100)
@@ -62,16 +55,17 @@ class RunSupervisor(Node):
         if done:
             self.finish('complete')
 
+    def _on_measurement(self, msg):
+        self.monitor.on_measurement(msg.effort_applied, msg.halted, stamp_of(msg))
+
     def _on_status(self, namespace, msg):
         self.monitor.on_status(namespace, stamp_of(msg), msg.mode, msg.alarm)
 
-    # Nothing started within start_timeout: write status no_reference and stop.
     def check_timeout(self):
         if (self.status is None and not self.monitor.started
                 and time.monotonic() - self._started > self._start_timeout):
             self.finish('no_reference')
 
-    # Write summary.yaml and exit; the launch shuts down on exit.
     def finish(self, status):
         self.status = status
         summary = self.monitor.summary(status)

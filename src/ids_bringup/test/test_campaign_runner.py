@@ -1,8 +1,3 @@
-# =============================================================================
-#  test_campaign_runner.py - the unattended campaign loop
-# -----------------------------------------------------------------------------
-#  Runs on pytest 7 (Ubuntu 24.04 / Jazzy) and pytest 9: no helper is named `setup` (B18).
-# =============================================================================
 
 import os
 
@@ -41,7 +36,8 @@ def fake_launch(output_dir, outcome):
 def test_launch_command_passes_scenario_seed_and_flags():
     assert launch_command('step_a3', 2, '/ws/data/runs', gui=True) == [
         'ros2', 'launch', 'ids_bringup', 'experiment.launch.py', 'scenario:=step_a3',
-        'seed:=2', 'output_dir:=/ws/data/runs', 'gui:=true', 'halt_on_alarm:=false']
+        'seed:=2', 'output_dir:=/ws/data/runs', 'gui:=true', 'halt_on_alarm:=false',
+        'cell_dir:=/ws/data/cell']
 
 
 def test_dry_run_only_prints_the_plan(tmp_path, capsys):
@@ -56,12 +52,15 @@ def test_runs_are_executed_checked_and_completed_ones_skipped(tmp_path):
     campaign, out = make_campaign(tmp_path)
     execute, calls = fake_launch(out, lambda name, seed: 'complete')
     sleeps = []
-    args = parse_args(['--campaign', campaign, '--output-dir', out])
-    stops = []
-    assert run(args, execute, sleeps.append, lambda: stops.append(1)) == [
+    cell_dir = str(tmp_path / 'cell')
+    args = parse_args(['--campaign', campaign, '--output-dir', out, '--cell-dir', cell_dir])
+    stops, closed = [], []
+    assert run(args, execute, sleeps.append, lambda: stops.append(1), closed.append) == [
         ('quiet', 1, 'complete'), ('quiet', 2, 'complete')]
     assert len(calls) == 2 and sleeps == [5.0] and len(stops) == 2
-    assert run(args, execute, sleeps.append, lambda: stops.append(1)) == [
+    assert closed == [cell_dir, cell_dir]
+    assert all(f'cell_dir:={cell_dir}' in c for c in calls)
+    assert run(args, execute, sleeps.append, lambda: stops.append(1), closed.append) == [
         ('quiet', 1, 'skipped'), ('quiet', 2, 'skipped')]
     assert len(stops) == 2
     assert len(calls) == 2
@@ -70,9 +69,12 @@ def test_runs_are_executed_checked_and_completed_ones_skipped(tmp_path):
 def test_failed_runs_are_reported_and_set_the_exit_code(tmp_path, monkeypatch):
     campaign, out = make_campaign(tmp_path)
     execute, _ = fake_launch(out, lambda name, seed: 'complete' if seed == 1 else 'no_reference')
-    args = parse_args(['--campaign', campaign, '--output-dir', out, '--pause', '0'])
-    assert run(args, execute, lambda s: None, lambda: [])[1] == ('quiet', 2, 'failed')
+    args = parse_args(['--campaign', campaign, '--output-dir', out, '--pause', '0',
+                       '--cell-dir', str(tmp_path / 'cell')])
+    assert run(args, execute, lambda s: None, lambda: [], lambda d: False)[1] == \
+        ('quiet', 2, 'failed')
     monkeypatch.setattr('ids_bringup.campaign_runner.subprocess.run', execute)
     monkeypatch.setattr('ids_bringup.campaign_runner.time.sleep', lambda s: None)
     monkeypatch.setattr('ids_bringup.campaign_runner.stop_gazebo', lambda: [])
-    assert main(['--campaign', campaign, '--output-dir', out, '--seeds', '2', '--rerun']) == 1
+    assert main(['--campaign', campaign, '--output-dir', out, '--seeds', '2', '--rerun',
+                 '--cell-dir', str(tmp_path / 'cell')]) == 1
