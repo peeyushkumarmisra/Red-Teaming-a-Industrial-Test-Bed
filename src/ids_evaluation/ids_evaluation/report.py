@@ -1,3 +1,11 @@
+# =============================================================================
+#  report.py - Markdown and CSV report
+# -----------------------------------------------------------------------------
+#  report.md with the detectors, every attack event, a table per detector and attack,
+#  false alarms per run and pooled, extra sections and the figures; plus events.csv,
+#  runs.csv and per_joint.csv for further analysis.
+# =============================================================================
+
 import csv
 import math
 import os

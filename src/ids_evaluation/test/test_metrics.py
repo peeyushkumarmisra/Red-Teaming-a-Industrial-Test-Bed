@@ -1,3 +1,7 @@
+# =============================================================================
+#  test_metrics.py - detection, latency, attribution and false alarm rules
+# =============================================================================
+
 import math
 
 import numpy as np

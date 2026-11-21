@@ -1,6 +1,17 @@
 <?xml version="1.0"?>
+<!--
+  =============================================================================
+   iiwa.gazebo.xacro - Gazebo plugins of the robot
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Three plugins, in this order: gz_ros2_control (runs the controllers), the gripper
+   (DetachableJoint) and FrictionDrift (wear). FrictionDrift is declared last as a
+   second guarantee that it runs after the controller's torque is written.
+  =============================================================================
+-->
+
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+  <!-- One joint's friction schedule for the FrictionDrift plugin. -->
   <xacro:macro name="iiwa_friction_joint" params="name index friction">
     <joint>
       <name>${name}</name>
@@ -11,6 +22,10 @@
   </xacro:macro>
 
   <xacro:macro name="iiwa_gazebo" params="prefix controllers_file friction">
+    <!--
+      ros2_control inside Gazebo. hold_joints keeps the arm still until the controller
+      claims the joints.
+    -->
     <gazebo>
       <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
         <parameters>${controllers_file}</parameters>
@@ -18,6 +33,10 @@
       </plugin>
     </gazebo>
 
+    <!--
+      Gripper: rigidly attaches the payload cube to link_7 on /gripper/attach and releases
+      it on /gripper/detach; its state is published on /gripper/state (B16).
+    -->
     <gazebo>
       <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
         <parent_link>${prefix}link_7</parent_link>
@@ -30,6 +49,7 @@
       </plugin>
     </gazebo>
 
+    <!-- Wear: declared last so it runs after gz_ros2_control even without priorities. -->
     <gazebo>
       <plugin filename="iiwa_friction_drift" name="iiwa_sim::FrictionDrift">
         <delay>${friction['delay']}</delay>

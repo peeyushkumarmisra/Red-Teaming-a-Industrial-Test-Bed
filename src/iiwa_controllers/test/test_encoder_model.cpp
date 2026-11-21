@@ -1,3 +1,9 @@
+// =============================================================================
+//  test_encoder_model.cpp - the sensor model
+// -----------------------------------------------------------------------------
+//  Resolution, noise level, seeding, and that the encoder stays inside the IDS's noise model.
+// =============================================================================
+
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -9,6 +15,7 @@ using iiwa_control_law::Vec7;
 using iiwa_controllers::EncoderConfig;
 using iiwa_controllers::EncoderModel;
 
+// Positions land on the encoder grid.
 TEST(EncoderModel, QuantisesPositionToTheConfiguredResolution) {
   EncoderConfig c;
   c.position_bits = 16;
@@ -28,6 +35,7 @@ TEST(EncoderModel, QuantisesPositionToTheConfiguredResolution) {
   EXPECT_EQ(vm, v);
 }
 
+// Noise has the right size; the same seed gives the same noise.
 TEST(EncoderModel, VelocityNoiseHasTheConfiguredSigmaAndIsSeeded) {
   EncoderConfig c;
   c.velocity_noise = 1e-3;
@@ -55,6 +63,7 @@ TEST(EncoderModel, VelocityNoiseHasTheConfiguredSigmaAndIsSeeded) {
   EXPECT_NEAR(sigma, 1e-3, 3e-5);
 }
 
+// 0 bits disables quantisation.
 TEST(EncoderModel, ZeroBitsPassesPositionThrough) {
   EncoderConfig c;
   c.position_bits = 0;
@@ -67,6 +76,7 @@ TEST(EncoderModel, ZeroBitsPassesPositionThrough) {
   EXPECT_EQ(qm, q);
 }
 
+// The IDS's position noise covers the encoder's rounding.
 TEST(EncoderModel, DefaultResolutionIsWithinTheIdsPositionNoiseModel) {
   EncoderModel e(EncoderConfig{});
   EXPECT_LT(e.resolution() / std::sqrt(12.0), 1e-5);

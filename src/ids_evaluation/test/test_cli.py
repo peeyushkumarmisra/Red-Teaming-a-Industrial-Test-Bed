@@ -1,3 +1,7 @@
+# =============================================================================
+#  test_cli.py - the commands end to end on synthetic exports
+# =============================================================================
+
 import os
 
 from ids_evaluation import bag, cli

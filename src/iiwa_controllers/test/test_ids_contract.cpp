@@ -1,3 +1,13 @@
+// =============================================================================
+//  test_ids_contract.cpp - the controller and the IDS agree
+// -----------------------------------------------------------------------------
+//  The real controller logic, encoder model and a Pinocchio plant with friction feed
+//  the real IDS with ROS-like messages. Proves the interface between them: no false
+//  alarm in normal tracking, and a setpoint MitM on each joint is detected within
+//  100 ms on that joint, halts the arm, and tracking resumes after a reset without a
+//  new alarm (B6).
+// =============================================================================
+
 #include <gtest/gtest.h>
 
 #include <cstdint>
@@ -16,6 +26,7 @@ using iiwa_controllers::TrackingCore;
 
 namespace {
 
+// Plant + controller + IDS, wired like the ROS system.
 class Cell {
  public:
   Cell(const TrackingConfig& config, std::uint64_t seed)
@@ -100,6 +111,7 @@ const ids_core::Calibration& calibration() {
 
 }  // namespace
 
+// Normal operation: no alarm.
 TEST(ControllerIdsContract, NominalTrackingWithConstantFrictionRaisesNoAlarm) {
   ids_core::IdsPipeline ids(ids_core::IdsConfig{}, iiwa_controllers::test::iiwaUrdf());
   ids.arm(calibration());
@@ -117,6 +129,7 @@ TEST(ControllerIdsContract, NominalTrackingWithConstantFrictionRaisesNoAlarm) {
   EXPECT_EQ(alarms, 0);
 }
 
+// Attack -> detect -> halt -> reset -> resume, on all 7 joints.
 TEST(ControllerIdsContract, SetpointMitmIsDetectedHaltedAndResumedWithoutReAlarm) {
   for (int j = 0; j < 7; ++j) {
     TrackingConfig tc;

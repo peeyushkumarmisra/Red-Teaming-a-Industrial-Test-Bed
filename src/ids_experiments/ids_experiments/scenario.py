@@ -1,3 +1,13 @@
+# =============================================================================
+#  scenario.py - the scenario file format
+# -----------------------------------------------------------------------------
+#  A scenario says what one run does: name, seed, friction profile, duration, planner
+#  settings, the attacks and whether the torque report is covered. Invalid scenarios are
+#  rejected with a clear message before any simulation starts (bad joint, unknown kind,
+#  overlapping attacks, attack after the end). Joints are 1-based in the file (a1 = 1)
+#  and 0-based inside the code.
+# =============================================================================
+
 from dataclasses import dataclass, field
 import math
 
@@ -5,6 +15,7 @@ import yaml
 
 from ids_attacks.library import make_attack
 
+# Must match the profiles in iiwa_sim/config/friction.yaml.
 FRICTION_PROFILES = ('none', 'nominal', 'wear', 'thesis')
 PLANNER_DEFAULTS = {'cycles': 0, 'payload_mass': 5.0}
 SCENARIO_KEYS = {'name', 'seed', 'friction_profile', 'duration', 'planner', 'attacks',
@@ -14,6 +25,7 @@ ATTACK_KEYS = {'id', 'kind', 'joint', 'joints', 'magnitude', 'magnitudes', 'star
 
 
 @dataclass(frozen=True)
+# A validated scenario.
 class Scenario:
     name: str
     seed: int
@@ -30,6 +42,7 @@ def _number(value, what):
     return float(value)
 
 
+# Either joint (one) or joints (several, for coordinated attacks), never both.
 def _joints(a, i):
     if 'joint' in a and 'joints' in a:
         raise ValueError(f'attack {i}: give joint or joints, not both')
@@ -40,6 +53,7 @@ def _joints(a, i):
     return tuple(j - 1 for j in joints)
 
 
+# freeze, replay and delay need no magnitude; the scenario seed makes noise attacks repeatable.
 def _attack(a, i, seed, duration):
     if not isinstance(a, dict):
         raise ValueError(f'attack {i} must be a mapping')
@@ -66,6 +80,7 @@ def _attack(a, i, seed, duration):
     return attack
 
 
+# Check every field; times are seconds after the first trusted reference.
 def parse_scenario(data):
     if not isinstance(data, dict):
         raise ValueError('scenario must be a mapping')
@@ -109,6 +124,7 @@ def parse_scenario(data):
     return Scenario(name, seed, profile, duration, planner, tuple(attacks), cover)
 
 
+# Read and validate a scenario YAML file.
 def load_scenario(path):
     with open(path) as f:
         return parse_scenario(yaml.safe_load(f))

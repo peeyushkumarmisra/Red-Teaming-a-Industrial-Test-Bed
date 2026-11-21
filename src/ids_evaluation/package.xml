@@ -1,5 +1,17 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   ids_evaluation - score the IDS on recorded runs (v1.4)
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Exports run bags to arrays, scores every attack (detected, latency, right joint) and
+   every false alarm, replays runs offline through ids_replay, runs baseline detectors
+   on the same data, and writes figures and a Markdown/CSV report.
+   Runs in the robot container (it needs matplotlib, Pinocchio and xacro), after the
+   runs; it never talks to the live system.
+  =============================================================================
+-->
+
 <package format="3">
   <name>ids_evaluation</name>
   <version>1.4.0</version>

@@ -1,3 +1,12 @@
+# =============================================================================
+#  sim.launch.py - Gazebo, robot, controllers, bridges and the part
+# -----------------------------------------------------------------------------
+#  Order of start-up: stop any leftover Gazebo -> Gazebo (headless unless gui:=true) ->
+#  robot description and spawn -> joint state broadcaster -> tracking controller ->
+#  payload cube. The part is spawned only after the controller is active, so the
+#  gripper's automatic attach happens with the arm held at home (B16, B21).
+# =============================================================================
+
 import os
 
 from ament_index_python.packages import get_package_share_directory
@@ -20,6 +29,7 @@ def _truthy(value):
     return value.strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+# Load and activate one controller through controller_manager.
 def _spawner(controller):
     return Node(package='controller_manager', executable='spawner',
                 arguments=[controller, '--controller-manager', '/controller_manager',
@@ -31,9 +41,11 @@ def _sim(context):
     def arg(name):
         return LaunchConfiguration(name).perform(context)
 
+    # A leftover server would capture this run's controllers (B20).
     leftover = stop_gazebo()
     sim_share = get_package_share_directory('iiwa_sim')
     controllers = arg('controllers_file') or os.path.join(sim_share, 'config', 'controllers.yaml')
+    # Expand the robot at launch time with this run's friction profile and controllers.
     description = xacro.process_file(
         os.path.join(sim_share, 'urdf', 'iiwa_sim.urdf.xacro'),
         mappings={'friction_profile': arg('friction_profile'),
@@ -53,6 +65,7 @@ def _sim(context):
                   parameters=[{'config_file': os.path.join(
                       get_package_share_directory('ids_bringup'), 'config', 'bridge.yaml')}],
                   output='log')
+    # Service bridge for set_pose, used to re-seat the part at a station.
     services = Node(package='ros_gz_bridge', executable='parameter_bridge',
                     name='gz_service_bridge',
                     arguments=[f'/world/{WORLD}/set_pose@ros_gz_interfaces/srv/SetEntityPose'],
@@ -67,10 +80,12 @@ def _sim(context):
         LogInfo(msg=f'stopped Gazebo left over from an earlier run: pids {leftover}'
                 if leftover else 'no Gazebo left over from an earlier run'),
         gazebo, state_publisher, bridge, services, spawn_robot,
+        # Strict chain: each step starts when the previous one has finished.
         RegisterEventHandler(OnProcessExit(target_action=spawn_robot, on_exit=[broadcaster])),
         RegisterEventHandler(OnProcessExit(target_action=broadcaster, on_exit=[controller])),
     ]
     mass = float(arg('payload_mass'))
+    # Spawn the part after the controller is active (see the header).
     if mass > 0.0:
         x, y, z = PAYLOAD_POSE
         payload = Node(package='ros_gz_sim', executable='create', name='spawn_payload',

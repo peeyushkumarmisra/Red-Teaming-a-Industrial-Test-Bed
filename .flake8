@@ -1,18 +1,20 @@
-# ==================================================================================================
-# .flake8 - Python style check (CI runs 'flake8 src' on every push)
-# --------------------------------------------------------------------------------------------------
-# The Python code drives the experiments: the PLC-style planner, the man-in-the-middle attacker, 
-# the run supervisor and the campaign runner. A clean check keeps them readable and catches mistakes
-# such as undefined names before a Gazebo run is wasted on them.
-# ==================================================================================================
+# =============================================================================
+#  .flake8 - Python style check (CI runs `flake8 src` on every push)
+# -----------------------------------------------------------------------------
+#  The Python code drives the experiments: the PLC-style planner, the
+#  man-in-the-middle attacker, the run supervisor and the campaign runner.
+#  A clean check keeps them readable and catches mistakes such as undefined
+#  names before a Gazebo run is wasted on them.
+# =============================================================================
 [flake8]
 
-# Longest allowed line (C++ uses 100)
-max-line-length = 100
+# Longest allowed line (C++ uses 100 columns in .clang-format).
+max-line-length = 99
 
-# E203 means "whitespace before ':'". The Black formatter writes slices such as
-# filename[len("file://") :]  with that space on purpose, and puts it back whenever the file is 
-# formatted again. Black's documentation recommends switching E203 off so that Black and flake8 agree
+# E203 means "whitespace before ':'". The Black formatter writes slices such
+# as  filename[len("file://") :]  with that space on purpose, and puts it back
+# whenever the file is formatted again. Black's documentation recommends
+# switching E203 off so that Black and flake8 agree.
 extend-ignore = E203
 
 # Build output and Git's own folder are not project source code.

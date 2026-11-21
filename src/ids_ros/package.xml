@@ -1,5 +1,16 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   ids_ros - ROS 2 node for the intrusion detection system
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Wraps ids_core: listens to the trusted PLC reference and the robot's measurements,
+   publishes one status per window and a latched alarm, offers a reset service, and runs
+   the calibration. Also builds ids_replay (v1.4), a command without ROS that replays a
+   recorded run with the same parameter file as the node.
+  =============================================================================
+-->
+
 <package format="3">
   <name>ids_ros</name>
   <version>1.4.0</version>

@@ -1,10 +1,23 @@
+# =============================================================================
+#  layout.py - column layouts shared by every module
+# -----------------------------------------------------------------------------
+#  One place that says which column of an exported array holds what: the IDS status
+#  (42 columns, one row per window), the trusted reference (25), the measurement (24),
+#  the attack truth (6), the friction truth (15) and the ids_replay output (57).
+#  Why it matters: export, replay, metrics and plots must agree exactly, or a latency
+#  would be measured on the wrong joint.
+# =============================================================================
+
 import numpy as np
 
 DOF = 7
 KINDS = ('step', 'ramp', 'sine', 'scaling', 'freeze', 'replay', 'delay', 'noise', 'coordinated',
          'drift_mimic')
+# The two live IDS instances recorded in every run.
 INSTANCES = {'v2': '/ids/status', 'thesis': '/ids_thesis/status'}
 
+# Status row: mode, alarm, latched, primary joint, alarm mask, NIS, then 7 values each of
+#             disturbance, fast, slow and command statistics, friction estimate, and the limit.
 MODE, ALARM, LATCHED, PRIMARY, MASK, NIS = 0, 1, 2, 3, 4, 5
 DISTURBANCE = slice(6, 13)
 FAST = slice(13, 20)
@@ -17,6 +30,7 @@ ARMED = 2
 
 REFERENCE_COLUMNS = 25
 MEASUREMENT_COLUMNS = 24
+# Attack truth row: t, active, event id, joint bit mask, magnitude, kind index.
 ATTACK_COLUMNS = 6
 FRICTION_TRUTH_COLUMNS = 15
 
@@ -52,6 +66,8 @@ def kind_name(index):
     return KINDS[i] if 0 <= i < len(KINDS) else 'unknown'
 
 
+# Turn ids_replay output into the status layout, so live and replayed detectors are scored by
+# the same code.
 def status_from_replay(windows, limit):
     w = np.asarray(windows, dtype=float)
     out = np.zeros((len(w), STATUS_COLUMNS))
@@ -70,6 +86,7 @@ def status_from_replay(windows, limit):
     return w[:, R_T].copy(), out
 
 
+# v1.2 exports have 41 columns (no limit); add an unknown limit column.
 def pad_status(status):
     s = np.asarray(status, dtype=float)
     if s.ndim != 2 or s.shape[1] not in (STATUS_COLUMNS - 1, STATUS_COLUMNS):

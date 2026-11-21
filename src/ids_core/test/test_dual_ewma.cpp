@@ -1,3 +1,9 @@
+// =============================================================================
+//  test_dual_ewma.cpp - the two averages and their statistics
+// -----------------------------------------------------------------------------
+//  Time constants, exact variance, drift response, freeze and rollback.
+// =============================================================================
+
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -9,17 +15,20 @@ using ids_core::DualEwma;
 using ids_core::lambdaFromTau;
 using ids_core::Vec7;
 
+// tau values give the dissertation's lambda 0.2 and 0.005.
 TEST(DualEwma, TimeConstantsReproduceThesisLambdas) {
   EXPECT_NEAR(lambdaFromTau(0.01, 0.0448), 0.2, 2e-3);
   EXPECT_NEAR(lambdaFromTau(0.01, 1.995), 0.005, 1e-4);
 }
 
+// Long-run sigma of fast - slow matches the formula.
 TEST(DualEwma, AsymptoticSigmaOfDifferenceMatchesClosedForm) {
   DualEwma e;
   e.configure(0.01, 0.0448, 1.995);
   EXPECT_NEAR(e.asymptoticSigmaDifference(), 0.3222, 2e-3);
 }
 
+// Exact sigma: no false alarms right after a reset.
 TEST(DualEwma, StatisticIsUnitVarianceOnWhiteNoiseFromTheFirstSample) {
   DualEwma e;
   e.configure(0.01, 0.0448, 1.995);
@@ -42,6 +51,7 @@ TEST(DualEwma, StatisticIsUnitVarianceOnWhiteNoiseFromTheFirstSample) {
   EXPECT_NEAR(late / runs, 1.0, 0.05);
 }
 
+// A linear drift leaves a constant, predictable offset (wear stays below the limit).
 TEST(DualEwma, LinearDriftSettlesAt195TimesSlope) {
   DualEwma e;
   e.configure(0.01, 0.0448, 1.995);
@@ -55,6 +65,7 @@ TEST(DualEwma, LinearDriftSettlesAt195TimesSlope) {
   EXPECT_NEAR(expected, 0.195, 3e-3);
 }
 
+// Frozen baseline stays put.
 TEST(DualEwma, FreezeHoldsSlowAverage) {
   DualEwma e;
   e.configure(0.01, 0.0448, 1.995);
@@ -65,6 +76,7 @@ TEST(DualEwma, FreezeHoldsSlowAverage) {
   EXPECT_GT(e.fast()(0), 4.9);
 }
 
+// The slow detector keeps working during a freeze (B23).
 TEST(DualEwma, SlowStatisticKeepsFollowingTheDataWhileTheBaselineIsFrozen) {
   DualEwma e;
   e.configure(0.01, 0.0448, 1.995);
@@ -78,6 +90,7 @@ TEST(DualEwma, SlowStatisticKeepsFollowingTheDataWhileTheBaselineIsFrozen) {
   EXPECT_GT(e.slow()(0), 0.0);
 }
 
+// An abrupt change appears in the fast average first.
 TEST(DualEwma, StepIsSeenByFastBeforeSlow) {
   DualEwma e;
   e.configure(0.01, 0.0448, 1.995);
@@ -86,6 +99,7 @@ TEST(DualEwma, StepIsSeenByFastBeforeSlow) {
   EXPECT_GT(e.statistic()(0), 3.0);
 }
 
+// Rollback removes the start of an attack from the baseline.
 TEST(DualEwma, RollbackRestoresTheBaselineFromBeforeTheExcursion) {
   DualEwma e;
   e.configure(0.01, 0.0448, 1.995);

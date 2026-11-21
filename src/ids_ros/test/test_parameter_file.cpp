@@ -1,3 +1,11 @@
+// =============================================================================
+//  test_parameter_file.cpp - the IDS parameter files load correctly
+// -----------------------------------------------------------------------------
+//  The installed ids.yaml gives the default configuration, ids_thesis.yaml selects the
+//  dissertation design, overrides keep their types, bad input is rejected, and both
+//  file layouts (node section or plain ros__parameters) are accepted.
+// =============================================================================
+
 #include <gtest/gtest.h>
 
 #include <cstdio>

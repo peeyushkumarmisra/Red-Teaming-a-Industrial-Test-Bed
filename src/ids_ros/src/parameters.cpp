@@ -1,3 +1,11 @@
+// =============================================================================
+//  parameters.cpp - the parameter table and its validation
+// -----------------------------------------------------------------------------
+//  One table maps each parameter name to the IdsConfig field it reads and writes, so
+//  defaults, overrides and the test "every field has one parameter" all use the same
+//  list.
+// =============================================================================
+
 #include "ids_ros/parameters.hpp"
 
 #include <algorithm>
@@ -15,12 +23,14 @@ using ids_core::IdsConfig;
 using ids_core::InputSource;
 using ids_core::Vec7;
 
+// One parameter: its name, how to read it from the config and how to write it.
 struct Binding {
   std::string name;
   std::function<ParameterValue(const IdsConfig&)> get;
   std::function<void(IdsConfig&, const ParameterValue&)> set;
 };
 
+// Accept integers where numbers are expected (YAML writes 1 for 1.0).
 double asDouble(const std::string& name, const ParameterValue& v) {
   if (const auto* d = std::get_if<double>(&v)) return *d;
   if (const auto* i = std::get_if<std::int64_t>(&v)) return static_cast<double>(*i);
@@ -88,6 +98,7 @@ Binding vector7(const std::string& name, F field) {
 
 #define IDS_FIELD(member) [](auto& c) -> auto& { return c.member; }
 
+// The full table: every IDS setting, grouped like config.hpp.
 const std::vector<Binding>& bindings() {
   static const std::vector<Binding> table = {
       {"input_source",
@@ -192,6 +203,7 @@ void require(bool ok, const char* what) {
 
 }  // namespace
 
+// Defaults declared by the node, taken from IdsConfig itself (one source of truth).
 ParameterMap defaultParameters(const IdsConfig& defaults) {
   ParameterMap out;
   for (const auto& b : bindings()) {
@@ -200,6 +212,7 @@ ParameterMap defaultParameters(const IdsConfig& defaults) {
   return out;
 }
 
+// Apply overrides by name; an unknown name is an error, not ignored.
 IdsConfig configFromParameters(const ParameterMap& values) {
   IdsConfig c;
   const auto& table = bindings();
@@ -215,6 +228,7 @@ IdsConfig configFromParameters(const ParameterMap& values) {
   return c;
 }
 
+// Reject settings that would make the model or the statistics meaningless.
 void validateConfig(const IdsConfig& c) {
   require(c.nominal_rate_hz > 0.0, "nominal_rate_hz must be positive");
   require(c.max_steps_per_window >= 1, "max_steps_per_window must be at least 1");

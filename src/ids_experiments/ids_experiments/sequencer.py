@@ -1,3 +1,15 @@
+# =============================================================================
+#  sequencer.py - the PLC program as a list of steps
+# -----------------------------------------------------------------------------
+#  Steps: Move, Dwell, SetContext (the trusted payload context) and Command (gripper
+#  attach/detach, re-seat the part). scan(t) is called every 10 ms PLC scan and returns
+#  the reference for that scan, like a PLC sequencer.
+#  Why the order matters: the IDS ignores the 0.3 s after a payload context change
+#  (context guard), so the grab must happen inside that window. The program therefore
+#  settles at the grab pose, switches the context on, attaches on the next scan and
+#  lifts on the scan after (B23).
+# =============================================================================
+
 from dataclasses import dataclass
 
 import numpy as np
@@ -6,6 +18,7 @@ from ids_experiments.trajectory import quintic
 
 
 @dataclass(frozen=True)
+# Quintic move to a joint target.
 class Move:
     target: tuple
     duration: float
@@ -13,12 +26,14 @@ class Move:
 
 
 @dataclass(frozen=True)
+# Hold still for a while.
 class Dwell:
     duration: float
     label: str = ''
 
 
 @dataclass(frozen=True)
+# Tell the controller and the IDS whether the part is held (and its mass).
 class SetContext:
     context: int
     mass: float
@@ -26,6 +41,7 @@ class SetContext:
 
 
 @dataclass(frozen=True)
+# A discrete action for the cell: attach, detach or seat.
 class Command:
     name: str
     label: str = ''
@@ -33,6 +49,7 @@ class Command:
 
 
 @dataclass
+# What one PLC scan produces.
 class ScanOutput:
     position: np.ndarray
     velocity: np.ndarray
@@ -45,6 +62,7 @@ class ScanOutput:
     finished: bool
 
 
+# Runs the program step by step; passes=0 repeats it forever.
 class Sequencer:
 
     def __init__(self, start, program, passes=1):
@@ -67,6 +85,7 @@ class Sequencer:
     def finished(self):
         return self._finished
 
+    # One PLC scan at time t (seconds since streaming started).
     def scan(self, t):
         zero = np.zeros_like(self._hold)
         position, velocity, acceleration = self._hold.copy(), zero.copy(), zero.copy()
@@ -109,10 +128,13 @@ class Sequencer:
                 self._finished = True
 
 
+# Carry the part from one station to the other.
+# Handover order: settle -> payload on -> attach -> lift, and payload off -> detach.
 def transfer_program(source, destination, mass, travel_time, approach_time, dwell, place=None):
     program = [
         Move(tuple(source['hover']), travel_time, 'to source hover'),
         Move(tuple(source['grab']), approach_time, 'descend to grab'),
+        # Settle BEFORE the context changes, so the lift falls inside the 0.3 s guard.
         Dwell(dwell, 'settle at grab'),
         SetContext(1, mass, 'payload on'),
         Command('attach', 'attach'),
@@ -124,11 +146,14 @@ def transfer_program(source, destination, mass, travel_time, approach_time, dwel
         Dwell(dwell, 'settle release'),
     ]
     if place is not None:
+        # Put the part back exactly on its pad, as a locating nest would (B23: without it
+        # the part drifts a little on every drop).
         program.append(Command('seat', 'seat part', tuple(place)))
     program.append(Move(tuple(destination['hover']), approach_time, 'retreat'))
     return program
 
 
+# One cycle = A -> B and B -> A.
 def shuttle_program(a, b, mass, travel_time, approach_time, dwell, places=None):
     to_b, to_a = places if places is not None else (None, None)
     return (transfer_program(a, b, mass, travel_time, approach_time, dwell, to_b)

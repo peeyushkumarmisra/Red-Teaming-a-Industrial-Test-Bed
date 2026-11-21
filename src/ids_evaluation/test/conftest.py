@@ -1,3 +1,10 @@
+# =============================================================================
+#  conftest.py - synthetic exports for the tests
+# -----------------------------------------------------------------------------
+#  Builds exports with known alarms, attacks and disturbance shifts, so every metric can be
+#  checked against a hand-computed answer.
+# =============================================================================
+
 import json
 import os
 import sys

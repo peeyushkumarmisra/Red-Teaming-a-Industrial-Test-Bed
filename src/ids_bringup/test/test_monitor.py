@@ -1,3 +1,7 @@
+# =============================================================================
+#  test_monitor.py - run health and IDS bookkeeping
+# =============================================================================
+
 from ids_bringup.monitor import RunMonitor
 
 
@@ -58,6 +62,7 @@ def test_summary_and_progress_report_the_run():
     assert m.progress() == 't=20/20 s, references 41, ids: 1 status, 0 alarm'
 
 
+# Runs with a blocked or collapsed arm are flagged (B21).
 def test_torque_saturation_is_counted_after_the_first_reference_and_flagged():
     m = RunMonitor(10.0, namespaces=(), saturation_warning=0.05)
     m.on_measurement([320.0, 0, 0, 0, 0, 0, 0])

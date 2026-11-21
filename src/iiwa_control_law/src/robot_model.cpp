@@ -1,3 +1,10 @@
+// =============================================================================
+//  robot_model.cpp - Pinocchio calls behind RobotModel
+// -----------------------------------------------------------------------------
+//  Loads the arm from URDF, checks it really is a 7-joint serial arm, and wraps the
+//  Pinocchio algorithms (RNEA, ABA, CRBA and their derivatives).
+// =============================================================================
+
 #include "iiwa_control_law/robot_model.hpp"
 
 #include <stdexcept>
@@ -26,6 +33,7 @@ RobotModel RobotModel::fromUrdfFile(const std::string& path, const std::string& 
 
 RobotModel::RobotModel(pinocchio::Model model, const std::string& tip_joint)
     : model_(std::move(model)), data_(model_) {
+  // Refuse anything that is not the 7-joint arm the IDS was designed for.
   if (model_.nq != kDof || model_.nv != kDof) {
     throw std::runtime_error("RobotModel expects a 7-DoF serial arm");
   }
@@ -46,6 +54,8 @@ RobotModel::RobotModel(pinocchio::Model model, const std::string& tip_joint)
   partial_dtau_ = Eigen::MatrixXd::Zero(kDof, kDof);
 }
 
+// The payload is merged into the inertia of the last link, so every
+// algorithm below sees the arm plus the workpiece.
 void RobotModel::setPayload(const Payload& payload) {
   payload_ = payload;
   if (payload.mass > 0.0) {
@@ -76,6 +86,7 @@ void RobotModel::forwardDynamicsDerivatives(const Vec7& q, const Vec7& v, const 
   da_dq = partial_dq_;
   da_dv = partial_dv_;
   minv = partial_dtau_;
+  // Pinocchio fills only the upper triangle of the inverse mass matrix; mirror it.
   minv.triangularView<Eigen::StrictlyLower>() =
       minv.transpose().triangularView<Eigen::StrictlyLower>();
 }
@@ -84,6 +95,7 @@ Vec7 RobotModel::inverseDynamics(const Vec7& q, const Vec7& v, const Vec7& a) {
   return pinocchio::rnea(model_, data_, q, v, a);
 }
 
+// CRBA also fills only the upper triangle; the copy below makes it symmetric.
 Mat7 RobotModel::massMatrix(const Vec7& q) {
   pinocchio::crba(model_, data_, q);
   Mat7 m = data_.M;

@@ -1,3 +1,11 @@
+// =============================================================================
+//  test_realtime.cpp - no memory allocation while armed
+// -----------------------------------------------------------------------------
+//  Counts every heap allocation (operator new is replaced). Armed processing,
+//  alarm onset, rollback, reset and reference intake must allocate nothing: heap
+//  allocation has unbounded time and is not allowed in a 10 ms real-time loop.
+// =============================================================================
+
 #include <gtest/gtest.h>
 
 #include <atomic>
@@ -55,6 +63,7 @@ void operator delete[](void* p, std::align_val_t) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t, std::align_val_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t, std::align_val_t) noexcept { std::free(p); }
 
+// The real-time path allocates nothing.
 TEST(Realtime, ArmedProcessingAndReferenceIntakeNeverAllocate) {
   ids_core::IdsConfig cfg;
   ids_core::IdsPipeline ids(cfg, urdf());
@@ -90,6 +99,7 @@ TEST(Realtime, ArmedProcessingAndReferenceIntakeNeverAllocate) {
 
 std::vector<int>* g_sink = nullptr;
 
+// Self-check: the counter does see allocations.
 TEST(Realtime, AllocationCounterSeesAllocations) {
   g_allocations = 0;
   g_counting = true;

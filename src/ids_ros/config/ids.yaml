@@ -1,18 +1,39 @@
+# =============================================================================
+#  ids.yaml - the v2 IDS instance (namespace /ids)
+# -----------------------------------------------------------------------------
+#  v2 design: the model is driven by the trusted PLC reference and learns friction.
+#  Every other setting keeps its default from ids_core/config.hpp (see
+#  docs/CONFIGURATION.md). Any change here changes the fingerprint: re-calibrate.
+# =============================================================================
+
 /**:
   ros__parameters:
+    # Follow Gazebo's clock: all timing is in simulation time.
     use_sim_time: true
+    # armed: detect with the stored calibration. calibrate: record and save a new one.
     run_mode: armed
+    # Where the calibration is read from and saved to (data/ on the host).
     calibration_file: /ws/data/calibration/ids_v2.yaml
+    # Seconds of sim time recorded for a calibration.
     calibration_duration: 120.0
     arm_after_calibration: false
     exit_after_calibration: false
+    # Ignore the first 2 s after the first reference (start-up transients).
     warmup: 2.0
+    # Empty: take the robot model from /robot_description.
     model_urdf: ""
+    # Predict from the PLC's reference, which the attacker cannot change.
     input_source: trusted_reference
+    # Learn viscous friction per joint (wear).
     estimator_mode: extended
     detector:
+      # At most one false alarm per 8 hours, over all joints and channels.
       false_alarm_budget_per_hour: 0.125
+      # 5 windows (50 ms) over the limit before an alarm.
       debounce: 5
+      # Alarms stay set until /ids/reset is called.
       latch: true
+      # Slow channel: catches slow attacks such as ramps.
       use_slow_detector: true
+      # Command check: catches torque changed after the controller.
       use_command_check: true

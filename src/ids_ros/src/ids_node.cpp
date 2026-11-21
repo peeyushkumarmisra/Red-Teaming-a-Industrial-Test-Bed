@@ -1,3 +1,17 @@
+// =============================================================================
+//  ids_node.cpp - the IDS node
+// -----------------------------------------------------------------------------
+//  Subscribes: /plc/reference (trusted tap of the PLC stream), /robot/measurement,
+//              /robot_description (once, if no model file is given).
+//  Publishes:  <ns>/status (IdsStatus, one per window), <ns>/alarm (Bool, latched:
+//              late joiners such as the controller get the current state).
+//  Service:    <ns>/reset (clear a latched alarm).
+//  Why it matters: the IDS reads the reference on the trusted side, before the
+//  network the attacker controls, and runs entirely on simulation time, so its
+//  timing matches the controller tick for tick.
+//  Two instances run side by side: /ids (v2) and /ids_thesis (dissertation).
+// =============================================================================
+
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -28,6 +42,7 @@ using ids_interfaces::msg::IdsStatus;
 using ids_interfaces::msg::JointMeasurement;
 using ids_interfaces::msg::JointReference;
 
+// Small helpers between the ROS parameter types and the ROS-free table.
 rclcpp::ParameterValue toRos(const ParameterValue& v) {
   return std::visit([](const auto& x) { return rclcpp::ParameterValue(x); }, v);
 }
@@ -63,6 +78,7 @@ std::string readFile(const std::string& path) {
   return ss.str();
 }
 
+// Joints as a 7-character mask for log lines (a1 first), for example 0001000 = a4.
 std::string maskString(const ids_core::Mask7& m) {
   std::string s;
   for (int i = 0; i < ids_core::kDof; ++i) {
@@ -73,6 +89,7 @@ std::string maskString(const ids_core::Mask7& m) {
 
 }  // namespace
 
+// The node. All work happens in the message callbacks; there is no timer.
 class IdsNode : public rclcpp::Node {
  public:
   explicit IdsNode(const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
@@ -85,6 +102,7 @@ class IdsNode : public rclcpp::Node {
       values[name] = fromRos(get_parameter(name));
     }
     config_ = configFromParameters(values);
+    // Node-level settings (not part of the fingerprint): mode, file, durations.
     run_mode_ = declare_parameter<std::string>("run_mode", "armed");
     calibration_file_ = declare_parameter<std::string>("calibration_file", "");
     calibration_duration_ = declare_parameter<double>("calibration_duration", 120.0);
@@ -99,14 +117,18 @@ class IdsNode : public rclcpp::Node {
       throw std::invalid_argument("calibration_file must be set");
     }
 
+    // Alarm topic: reliable and transient-local, so a controller that starts later still
+    // receives the current alarm state.
     alarm_pub_ = create_publisher<std_msgs::msg::Bool>(
         "alarm", rclcpp::QoS(1).reliable().transient_local());
+    // One status per window; the evaluation uses these, not the alarm topic.
     status_pub_ = create_publisher<IdsStatus>("status", rclcpp::QoS(100).reliable());
     reset_srv_ = create_service<std_srvs::srv::Trigger>(
         "reset", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                         std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
           onReset(*response);
         });
+    // Reliable delivery: a lost window would leave a gap in the replayed timeline.
     const auto stream = rclcpp::QoS(100).reliable();
     reference_sub_ = create_subscription<JointReference>(
         "/plc/reference", stream,
@@ -115,6 +137,8 @@ class IdsNode : public rclcpp::Node {
         "/robot/measurement", stream,
         [this](JointMeasurement::ConstSharedPtr msg) { onMeasurement(*msg); });
     publishAlarm(false);
+    // The model comes from a file, or from /robot_description (the same description
+    // Gazebo spawned, so the IDS models exactly the simulated arm).
     if (!model_urdf.empty()) {
       start(readFile(model_urdf));
     } else {
@@ -130,9 +154,12 @@ class IdsNode : public rclcpp::Node {
   }
 
  private:
+  // (Re)build the pipeline for a robot description: calibrate, or arm from the file.
+  // Called again when a new run restarts simulation time.
   void start(const std::string& urdf) {
     urdf_ = urdf;
     fault_ = false;
+    // A new run must not inherit the previous run's latched alarm (B15).
     publishAlarm(false);
     have_reference_ = false;
     last_reference_seq_ = 0;
@@ -165,6 +192,7 @@ class IdsNode : public rclcpp::Node {
     }
   }
 
+  // Trusted reference: keep it for the model. Old or repeated sequence numbers are dropped.
   void onReference(const JointReference& msg) {
     if (!pipeline_) {
       return;
@@ -181,17 +209,20 @@ class IdsNode : public rclcpp::Node {
     last_reference_seq_ = msg.seq;
   }
 
+  // One measurement = one IDS window: process it, publish the status, update the alarm.
   void onMeasurement(const JointMeasurement& msg) {
     if (!pipeline_ || !have_reference_) {
       return;
     }
     const double stamp = rclcpp::Time(msg.header.stamp).seconds();
+    // Simulation time went backwards: a new run started. Rebuild the IDS from scratch.
     if (last_stamp_ >= 0.0 && stamp < last_stamp_ - 1.0) {
       RCLCPP_WARN(get_logger(), "sim time jumped back by %.2f s; restarting the IDS",
                   last_stamp_ - stamp);
       start(urdf_);
       return;
     }
+    // Skip the start-up warm-up after the first reference.
     if (stamp < first_reference_stamp_ + warmup_) {
       return;
     }
@@ -214,6 +245,7 @@ class IdsNode : public rclcpp::Node {
       handleCalibration(stamp);
       return;
     }
+    // The alarm topic is true while alarming or latched.
     const bool alarm = out.alarm || out.latched;
     if (alarm && !alarm_state_) {
       RCLCPP_WARN(get_logger(), "ALARM at t=%.3f s: primary joint a%d, physics %s, command %s",
@@ -225,6 +257,8 @@ class IdsNode : public rclcpp::Node {
     }
   }
 
+  // After calibration_duration of sim time: compute the calibration, save it, then
+  // optionally arm or exit (the calibration launch exits).
   void handleCalibration(double stamp) {
     if (calibration_first_stamp_ < 0.0) {
       calibration_first_stamp_ = stamp;
@@ -256,6 +290,7 @@ class IdsNode : public rclcpp::Node {
     }
   }
 
+  // Operator reset: clear the alarm and restart detection after the warm-up.
   void onReset(std_srvs::srv::Trigger::Response& response) {
     if (!pipeline_ || pipeline_->mode() != ids_core::Mode::kArmed) {
       response.success = false;
@@ -269,6 +304,7 @@ class IdsNode : public rclcpp::Node {
     RCLCPP_INFO(get_logger(), "alarm reset");
   }
 
+  // Publish only changes; remember the current state.
   void publishAlarm(bool alarm) {
     alarm_state_ = alarm;
     std_msgs::msg::Bool msg;
@@ -302,6 +338,7 @@ class IdsNode : public rclcpp::Node {
 
 }  // namespace ids_ros
 
+// Exceptions at start-up (bad parameters, missing file) end the node with a clear error.
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
   int code = 0;

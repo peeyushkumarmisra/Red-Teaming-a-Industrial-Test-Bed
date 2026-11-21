@@ -1,3 +1,11 @@
+# =============================================================================
+#  replay.py - call ids_replay from Python
+# -----------------------------------------------------------------------------
+#  Writes an export's references and measurements to .npy files, runs the ids_replay
+#  binary (from ids_ros) and reads the per-window output back. A calibration can be
+#  made from one run and used to arm on others.
+# =============================================================================
+
 import os
 import shutil
 import subprocess
@@ -9,6 +17,7 @@ import yaml
 from ids_evaluation import layout
 
 
+# IDS_REPLAY environment variable, then the installed ids_ros package, then PATH.
 def find_replay_binary():
     explicit = os.environ.get('IDS_REPLAY')
     if explicit:
@@ -26,6 +35,7 @@ def find_replay_binary():
     raise FileNotFoundError('ids_replay not found: build ids_ros or set IDS_REPLAY')
 
 
+# The installed ids_ros parameter files (ids.yaml, ids_thesis.yaml).
 def package_params(name):
     try:
         from ament_index_python.packages import get_package_share_directory

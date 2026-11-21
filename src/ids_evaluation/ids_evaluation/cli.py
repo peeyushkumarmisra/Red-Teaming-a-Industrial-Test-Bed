@@ -1,3 +1,15 @@
+# =============================================================================
+#  cli.py - the five commands
+# -----------------------------------------------------------------------------
+#  export_run RUN...                bag -> export.npz in each run folder
+#  evaluate RUN... --out DIR        score the live IDS instances, figures, report
+#  compare_baselines RUN... --train RUN --out DIR
+#                                   live IDS, replays and baselines side by side
+#  replay_run RUN --out OUT.npz (--calibrate C | --calibration C) [--set n=v]
+#  split_legacy EXPORT --out DIR    split a v1.2 multi-run export
+#  RUN may be a run folder, a folder of run folders, or an export .npz.
+# =============================================================================
+
 import argparse
 import math
 import os
@@ -17,6 +29,8 @@ def _campaign_default():
         return None
 
 
+# Without --urdf, expand the installed iiwa_sim description with xacro: the same robot model
+# the IDS uses.
 def _urdf(path):
     if path:
         with open(path) as f:
@@ -39,6 +53,8 @@ def _inputs(parser):
                         help='keep runs whose summary reports torque saturation')
 
 
+# --limits fills limits missing from old exports; saturated runs are dropped unless
+# --include-saturated.
 def _load(args):
     exports = [pipeline.load_run(p, args.calibration_dir) for p in pipeline.expand(args.paths)]
     if args.legacy:
@@ -59,6 +75,7 @@ def _dropped_note(dropped):
     return ([f'excluded for torque saturation: {", ".join(dropped)}'] if dropped else [])
 
 
+# Whole run, attack window zoom, and friction for nominal runs.
 def _figures(out_dir, export, series, zoom=True):
     name = pipeline.run_name(export)
     start = pipeline.start_of(export)
@@ -131,6 +148,7 @@ def evaluate_main(argv=None):
     return 0
 
 
+# The training run may also be a test run; only its part after training is scored.
 def compare_main(argv=None):
     p = argparse.ArgumentParser(description='Compare the IDS with baseline detectors')
     _inputs(p)

@@ -1,3 +1,11 @@
+# =============================================================================
+#  test_library.py - every attack kind behaves as documented
+# -----------------------------------------------------------------------------
+#  Transparent outside the window, only the attacked joints change, position and
+#  velocity stay consistent, replay and delay use the right past samples, noise is
+#  repeatable, inputs are never modified, and invalid attacks are rejected.
+# =============================================================================
+
 import math
 
 import numpy as np

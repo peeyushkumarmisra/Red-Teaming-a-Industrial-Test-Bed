@@ -1,3 +1,13 @@
+// =============================================================================
+//  robot_model.hpp - rigid-body model of the iiwa (Pinocchio)
+// -----------------------------------------------------------------------------
+//  Gravity, forward and inverse dynamics, mass matrix and their derivatives for the
+//  7-joint arm, plus the workpiece held in the gripper.
+//  Why it matters: the controller needs gravity compensation, and the IDS needs the
+//  full dynamics (and their derivatives for the Kalman filter) to predict motion.
+//  All buffers are allocated once, so calls are safe inside a real-time loop.
+// =============================================================================
+
 #pragma once
 
 #include <array>
@@ -11,12 +21,15 @@
 
 namespace iiwa_control_law {
 
+// Workpiece in the gripper: mass, centre of mass and inertia in the flange frame.
 struct Payload {
   double mass = 0.0;
   Eigen::Vector3d com = Eigen::Vector3d::Zero();
   Eigen::Matrix3d inertia = Eigen::Matrix3d::Zero();
 };
 
+// The 5 kg, 0.1 m cube of the experiments, held with its centre 0.204 m along the link_7 axis.
+// The simulation spawns exactly this cube (iiwa_sim / ids_experiments payload).
 inline Payload defaultPayload() {
   Payload p;
   p.mass = 5.0;
@@ -25,17 +38,20 @@ inline Payload defaultPayload() {
   return p;
 }
 
+// Thin wrapper around a Pinocchio model of the 7-joint arm.
 class RobotModel {
  public:
   static RobotModel fromUrdfString(const std::string& urdf, const std::string& tip_joint = "joint_a7");
   static RobotModel fromUrdfFile(const std::string& path, const std::string& tip_joint = "joint_a7");
 
+  // Add (or remove) the workpiece to the last link's inertia.
   void setPayload(const Payload& payload);
   const Payload& payload() const { return payload_; }
 
   Vec7 gravity(const Vec7& q);
   void gravityDerivative(const Vec7& q, Mat7& dg_dq);
   Vec7 forwardDynamics(const Vec7& q, const Vec7& v, const Vec7& tau);
+  // Derivatives used to linearise the closed loop for the Kalman filter.
   void forwardDynamicsDerivatives(const Vec7& q, const Vec7& v, const Vec7& tau, Mat7& da_dq,
                                   Mat7& da_dv, Mat7& minv);
   Vec7 inverseDynamics(const Vec7& q, const Vec7& v, const Vec7& a);
@@ -59,6 +75,7 @@ class RobotModel {
   Vec7 effort_limits_;
   Vec7 lower_limits_;
   Vec7 upper_limits_;
+  // Work buffers, allocated once (no heap allocation per call).
   Eigen::VectorXd tau_buffer_;
   Eigen::MatrixXd partial_dq_;
   Eigen::MatrixXd partial_dv_;

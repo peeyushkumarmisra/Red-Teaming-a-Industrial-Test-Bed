@@ -1,3 +1,14 @@
+# =============================================================================
+#  pipeline.py - the evaluation steps put together
+# -----------------------------------------------------------------------------
+#  Loads runs (cached exports), extracts the live IDS series, scores them, and builds
+#  the baseline series: residual baselines on the recorded v2 disturbance, the
+#  momentum observer, and three ids_replay variants (v2 settings, the thesis
+#  settings, and v2 with commanded-torque input).
+#  Training uses the first warm-up + duration + 1 s of a nominal run; that part of
+#  the run is not scored, so baselines are judged on data they have not seen.
+# =============================================================================
+
 from dataclasses import dataclass
 import glob
 import json
@@ -10,6 +21,7 @@ from ids_evaluation import bag, baselines, layout, metrics, replay
 
 WARMUP = 3.99
 DEFAULT_CALIBRATION_DIR = '/ws/data/calibration'
+# Replay variants: parameter file and --set overrides.
 REPLAYS = {
     'v2_replay': ('ids.yaml', ()),
     'thesis_replay': ('ids_thesis.yaml', ()),
@@ -57,6 +69,7 @@ def expand(paths):
     return out
 
 
+# Re-export only when the bag is newer than the cached export.
 def load_run(path, calibration_dir=DEFAULT_CALIBRATION_DIR, force=False):
     if path.endswith('.npz'):
         return bag.load_export(path)
@@ -72,6 +85,7 @@ def load_run(path, calibration_dir=DEFAULT_CALIBRATION_DIR, force=False):
     return bag.normalise(export)
 
 
+# Scenario of a v1.2 run from its name and the campaign file.
 def legacy_scenarios(runs, campaign_path):
     if not campaign_path or not os.path.isfile(campaign_path):
         return {}
@@ -113,6 +127,7 @@ def live_series(export):
     return out
 
 
+# Mark the training part as not armed, so it is not scored.
 def held_out(series, after):
     if after is None:
         return series
@@ -149,6 +164,7 @@ def armed_disturbance(export):
     return export['v2_t'][armed] - start_of(export), status[armed][:, layout.DISTURBANCE]
 
 
+# Standardise with the training windows, then apply the static and EWMA statistics.
 def residual_baselines(train, tests, train_end, rules=baselines.DetectorRules()):
     t, d = armed_disturbance(train)
     keep = (t >= t[0] + WARMUP) & (t <= train_end) if len(t) else np.zeros(0, dtype=bool)
@@ -195,6 +211,7 @@ def momentum_baseline(urdf, train, tests, train_end, rules=baselines.DetectorRul
     return out, limit
 
 
+# Calibrate each variant on the training part, then arm it on every test run.
 def replay_baselines(urdf, train, tests, workdir, duration=120.0, variants=REPLAYS,
                      binary=None):
     os.makedirs(workdir, exist_ok=True)
@@ -216,6 +233,8 @@ def replay_baselines(urdf, train, tests, workdir, duration=120.0, variants=REPLA
     return out, calibrations
 
 
+# How closely the replayed disturbance matches the live one, window by window: a check of the
+# replay itself.
 def replay_fidelity(live, replayed, tolerance=0.002, agree=1e-3):
     a = live.status[:, layout.MODE] == layout.ARMED
     b = replayed.status[:, layout.MODE] == layout.ARMED
@@ -240,6 +259,7 @@ def replay_fidelity(live, replayed, tolerance=0.002, agree=1e-3):
             'relative_rms': (diff / np.maximum(rms, 1e-12)).tolist(), 'correlation': corr}
 
 
+# Runs with torque at an effort limit are not nominal and are excluded unless asked for.
 def saturated(export):
     try:
         summary = json.loads(str(export['summary']))

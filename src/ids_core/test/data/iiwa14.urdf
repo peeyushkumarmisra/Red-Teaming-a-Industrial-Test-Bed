@@ -1,4 +1,14 @@
 <?xml version="1.0"?>
+<!--
+  =============================================================================
+   iiwa14.urdf - KUKA LBR iiwa 14 model for the unit tests
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Same kinematics and inertias as the simulated robot (iiwa_sim). The tests check
+   that both give the same calibration fingerprint, so tests and simulation describe
+   the same arm.
+  =============================================================================
+-->
+
 <robot name="kuka_iiwa">
   <link name="world" />
   <link name="iiwa_base" type="fixed" />

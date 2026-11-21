@@ -1,4 +1,4 @@
-# Red-Teaming an Industrial Robot Testbed — v1.2 `mp-core-sim`
+# Red-Teaming an Industrial Robot Testbed — v1.4 `v1.4-ids-attacks-eval`
 
 ### Physics-informed intrusion detection for a KUKA LBR iiwa, rebuilt so its results can be trusted
 
@@ -7,12 +7,12 @@
 [![C++](https://img.shields.io/badge/C%2B%2B-20-00599C)](#9-technologies-retained-introduced-and-replaced)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB)](#9-technologies-retained-introduced-and-replaced)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.2.0-success)](CHANGELOG.md)
+[![Release](https://img.shields.io/badge/release-v1.4.0-success)](CHANGELOG.md)
 
 > **In one sentence.** A model of the robot's physics watches all seven joints, compares how the arm actually moves with what the trusted PLC asked for, and raises an alarm when someone falsifies the setpoints on their way to the robot, while slow friction wear is learned instead of being mistaken for an attack.
 
 > [!IMPORTANT]
-> **The measured results in this release are narrow:** one seed, one attack on joint a4 and one 600 s nominal run. There is no per-hour false-alarm rate, no ramp-attack result and no result for the other six joints yet. Everything else is labelled *implemented and unit-tested, not run in simulation*. See [§12](#12-measured-improvements) and [§18](#18-current-limitations).
+> **The measured results are narrow:** seed 1 only; a 0.02 rad step on joint a4 with and without a falsified torque report; one 600 s nominal run (0.165 h). The other nine attack kinds, the sweeps, the ramp and the other six joints are *implemented and unit-tested, not run in simulation*. Per-hour false-alarm rates below come from minutes of data and are not yet statistically meaningful. See [§12](#12-measured-improvements) and [§18](#18-current-limitations).
 
 ---
 
@@ -23,7 +23,7 @@
 | [1. Project overview](#1-project-overview) | [8. Architecture evolution](#8-architecture-evolution) | [15. Configuration](#15-configuration) |
 | [2. Original objective](#2-original-objective) | [9. Technologies](#9-technologies-retained-introduced-and-replaced) | [16. Testing & verification](#16-testing--verification) |
 | [3. Original capabilities](#3-original-capabilities-v100) | [10. Algorithms & decisions](#10-algorithms--implementation-decisions) | [17. Benchmarks](#17-benchmarks) |
-| [4. Original architecture](#4-original-architecture--technologies-v100) | [11. Final capabilities](#11-final-capabilities-v120) | [18. Current limitations](#18-current-limitations) |
+| [4. Original architecture](#4-original-architecture--technologies-v100) | [11. Final capabilities](#11-final-capabilities-v140) | [18. Current limitations](#18-current-limitations) |
 | [5. Original limitations](#5-original-limitations) | [12. Measured improvements](#12-measured-improvements) | [19. Future work](#19-future-work) |
 | [6. Problems identified](#6-engineering-problems-identified) | [13. Installation & setup](#13-installation--setup) | [Challenges & how we solved them](#challenges-faced--how-we-solved-them) |
 | [7. Key changes](#7-key-changes--rationale) | [14. Running experiments](#14-running-experiments) | [Repository layout](#repository-layout) |
@@ -41,16 +41,16 @@ This project is a **simulated industrial robot cell used as a red-team testbed**
 - it estimates, for every joint and every 10 ms, the extra torque that would explain what the encoders actually saw;
 - a dual-timescale statistic separates **slow wear** (learned as friction) from **fast attacks** (alarm), and names the attacked joint.
 
-This repository started as the code of an MSc dissertation (EMATM0055, tag `v1.0.0`). Release **v1.2.0** (branch `mp-core-sim`) rebuilds that experiment from the ground up: correct maths, a deterministic simulation, wear that really reaches the joints, containers, tests and CI. Later releases add more attack types (v1.4), SROS2 security (v1.6) and a full OT network with OpenPLC and Modbus (v1.8).
+This repository started as the code of an MSc dissertation (EMATM0055, tag `v1.0.0`). Release **v1.2.0** (branch `v1.2-ids-core-sim`) rebuilt that experiment from the ground up: correct maths, a deterministic simulation, wear that really reaches the joints, containers, tests and CI. Release **v1.4.0** (branch `v1.4-ids-attacks-eval`) adds the tools to attack and measure it properly: ten attack kinds, an attacker who also falsifies the robot's torque report, sweeps, an offline replay of recorded runs, an evaluation package and five baseline detectors. Later releases add SROS2 security (v1.6) and a full OT network with OpenPLC and Modbus (v1.8).
 
 | | |
 |---|---|
 | **Robot** | KUKA LBR iiwa 14 R820 (7 joints), Gazebo Harmonic, `ros2_control` at 1 kHz |
 | **Task** | Pick-and-place of a 5 kg cube between two stations, forever |
 | **Wear** | Viscous friction on every joint grows 0.1 % of its initial value per second from 30 s |
-| **Attack (measured)** | Setpoint MitM, +0.02 rad on joint a4 from 120 s to 130 s |
+| **Attack (measured)** | Setpoint MitM, +0.02 rad on joint a4 from 120 s to 130 s, with and without a falsified torque report |
 | **IDS** | EKF + disturbance inversion + Dual-EWMA, two instances side by side (v2 and the dissertation's design) |
-| **Headline (one run each)** | v2: **no false alarm in 600 s of wear; attack detected 50 ms after the first falsified setpoint, on a4.** Dissertation design: missed the attack. |
+| **Headline (v1.4, one run each)** | v2: **no false alarm in 600 s of wear; attack detected 44 ms after it started, and 50 ms when the attacker also hid the torque, both on a4.** Dissertation design: 31 false alarms under wear. |
 
 ---
 
@@ -60,7 +60,7 @@ From the dissertation, in its own terms:
 
 > Decouple slow mechanical friction drift from fast false-data-injection attacks (FDIAs) using a physics-informed state observer with Dual-EWMA adaptive thresholding, keeping the **false-positive rate below 1 %** during drift and the **detection latency below 100 ms**.
 
-v1.2 keeps this objective unchanged and adds what is needed to test it honestly: every joint monitored, the attacked joint named, calibrate once, and the dissertation's own design measured side by side on the same data.
+v1.2 kept this objective unchanged and added what is needed to test it honestly: every joint monitored, the attacked joint named, calibrate once, and the dissertation's own design measured side by side on the same data. v1.4 adds what is needed to *measure* it: latency per attack event, false alarms per hour, attribution, harder attacks, and simpler detectors to compare with.
 
 ---
 
@@ -152,7 +152,13 @@ The Phase 1 audit listed 26 defects (D1–D26) and six maths findings (M1–M6).
 | C15 | PLC-style planner: 10 ms scans on sim time, seeded IK, trusted context | Repeatable motion; grabs that do not cause false alarms |
 | C16 | Setpoint MitM node with ground truth | The dissertation's actual threat model |
 | C17 | Bringup: launches, scenarios, campaign runner, run supervisor | Unattended, recorded, health-checked runs |
-| C18 | `ids_evaluation` | **Moved to v1.4** (fast-track decision) |
+| C18 | `ids_evaluation` (v1.4): run export, per-event detection and latency, false alarms per hour, attribution, per-joint table, figures, Markdown/CSV report | Results come from one tested tool, not from ad-hoc scripts |
+| C19 | `ids_attacks` (v1.4): ten attack kinds with ground truth | Test the IDS against attacks shaped to look normal (freeze, replay, delay, drift-mimic), not only steps |
+| C20 | Sweeps in `campaign.yaml` (v1.4) | Kind × joints × magnitudes from one entry, for minimum-detectable-attack curves |
+| C21 | Offline replay: `ids_core` replay and the `ids_replay` command (v1.4) | Re-score recordings, calibrate from any nominal run, and run other designs on identical data |
+| C22 | Baselines (v1.4): static threshold, single EWMA, thesis and commanded-torque replays, momentum observer | Shows what each part of the IDS adds |
+| C24 | Falsified torque report, the "cover" (v1.4) | A stronger attacker who also hides the command-torque evidence |
+| C23 | MEWMA | Not in v1.4: a detector maths change needs approval first |
 
 The full list is in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -208,6 +214,21 @@ flowchart TB
 | Attack | Feedback spoof | Setpoint MitM (step and ramp, any joint) |
 | Build | Not reproducible | Two Docker images, CI, about 200 tests |
 
+**v1.4 additions.** The attacker can now also relay the robot's measurements and rewrite the reported torque (C24), and every run can be scored offline:
+
+```mermaid
+flowchart LR
+    CTRL["Tracking controller"] -- "/robot/measurement_raw (covered runs only)" --> MITM["MitM<br/>ids_attacks: 10 kinds + cover"]
+    MITM -- "/robot/measurement (torque falsified)" --> IDS["IDS v2 / thesis"]
+    RUN[("run folder<br/>bag + summary")] --> EXP["export_run<br/>export.npz"]
+    EXP --> EVAL["evaluate<br/>live IDS scores"]
+    EXP --> CMP["compare_baselines"]
+    CMP --> REP["ids_replay<br/>(same IDS code, offline)"]
+    CMP --> BASE["static, EWMA,<br/>momentum observer"]
+    EVAL --> OUT["report.md, CSV, figures"]
+    CMP --> OUT
+```
+
 ---
 
 ## 9. Technologies retained, introduced and replaced
@@ -221,6 +242,7 @@ flowchart TB
 | FrictionDrift and DetachableJoint | GitHub Actions CI, gtest, pytest, flake8 | `custom_gazebo_plugins` → `iiwa_sim` FrictionDrift |
 | ikpy (pinned 4.5.0) | MCAP recording, run supervisor, YAML calibration | `run_exp.sh` + CSV → launches, campaign runner, bags |
 | — | `ros_gz_bridge`, `yaml-cpp` | **Dropped:** RLS estimator; `.devcontainer/Dockerfile` |
+| — | v1.4: `ids_attacks`, `ids_evaluation` (NumPy, Matplotlib, `rosbag2_py`), `.npy` replay files, `ids_replay` | Offline graph scripts → `ids_evaluation`; `ids_experiments/attacks.py` → `ids_attacks` |
 
 ---
 
@@ -268,7 +290,14 @@ with the **exact** standard deviations after $k$ samples. During an alarm the ba
 
 Same pipeline, driven by the **commanded torque**, no friction states, no baseline freeze or rollback, and only the fast channel decides. This is the dissertation's design, kept to show its blind spot on the same data.
 
-### 10.7 Simulation decisions
+### 10.7 Evaluation rules (C18, v1.4)
+
+- **Detected:** an alarm onset in [start, end + 1 s]. **Latency:** onset − start (0 if an alarm was already active). **Before attack end:** the onset came while the attack was still active, not from the step back.
+- **Attributed:** the primary joint at that onset is an attacked joint.
+- **False alarm:** an onset after the warm-up and outside every [start, end + 30 s]; the rate is per hour of that observed time. Runs with a torque-saturation warning are excluded.
+- **Baselines** get the same debounce and hysteresis as the IDS and the lowest limit that raises no alarm on the first 123 s of a nominal run (a favourable choice for them); that part is not scored.
+
+### 10.8 Simulation decisions
 
 - **Tick clock (B19):** the controller counts its own 1 ms ticks instead of reading the late `/clock`, so every measurement window is exactly 10 ms.
 - **FrictionDrift (B14, B21):** adds $-b(t)\,\dot q$ only to a torque the controller has written, after it (priority 100), and publishes the ground truth.
@@ -276,12 +305,17 @@ Same pipeline, driven by the **commanded torque**, no friction states, no baseli
 
 ---
 
-## 11. Final capabilities (v1.2.0)
+## 11. Final capabilities (v1.4.0)
 
 | Capability | Status |
 |---|---|
-| Setpoint MitM (step) on a4 detected and attributed in Gazebo | **Measured** (one run) |
-| No false alarm under wear in Gazebo | **Measured** (one 600 s run) |
+| Setpoint MitM (step) on a4 detected and attributed in Gazebo | **Measured** (v1.2 and v1.4, one run each) |
+| Same attack with a falsified torque report (cover) detected and attributed | **Measured** (v1.4, one run) |
+| Ten attack kinds, coordinated attacks, sweeps | Implemented and unit-tested; **only the step and the covered step run in simulation** |
+| Evaluation of recorded runs: latency, false alarms per hour, attribution, figures, report | **Used** on the v1.4 runs |
+| Offline replay of recorded runs with the live IDS code | **Used**; matches the live d̂ in ≥ 98.9 % of windows |
+| Baseline detectors on the same recordings | **Measured** (v1.4, three runs) |
+| No false alarm under wear in Gazebo | **Measured** (one 600 s run each in v1.2 and v1.4) |
 | Dissertation design measured side by side (blind spot reproduced) | **Measured** (one run) |
 | IDS model matches Gazebo within its noise floor; friction learned within 2 % at constant friction | **Measured** (calibration run) |
 | Wear really reaches the joints (ground truth published) | **Measured** |
@@ -313,7 +347,24 @@ Only measured values; "not comparable" where the two releases measured different
 | Dissertation design vs setpoint MitM | Not tested | Missed it (one run) |
 | IDS time per 10 ms window | Not measured | Median 181–233 µs (shared 2-core VM) |
 
-### Results of the two regression runs
+### v1.4.0 results (seed 1, one run each)
+
+| Run | IDS | Detected | Latency | Right joint | False alarms |
+|---|---|---|---|---|---|
+| `nominal`, 600 s, wear | v2 | — | — | — | **0** in 0.165 h |
+| | thesis | — | — | — | 31 in 0.165 h (30 after 325 s, as wear grows) |
+| `step_a4`, +0.02 rad, 120–130 s | v2 | yes, before the attack ended | **0.044 s** | a4 | 0 |
+| | thesis | yes | 0.114 s | a4 | 0 |
+| `step_a4_cover`, same attack + falsified torque report | v2 | yes (physics channel only; the command check was blinded) | **0.050 s** | a4 | 2 (a1, 31 s and 50 s after the attack ended; open item B16) |
+| | thesis | yes | 0.050 s | a4 | 1 |
+
+**Baselines** (trained on the first 123 s of `nominal`, scored on the rest and on both attack runs): a static threshold and a single EWMA on the same disturbance estimate detect both attacks as fast as v2 but raise 1 false alarm each in the held-out 0.131 h; the momentum observer misses the plain step and catches the covered one, because the falsified torque is its own input; the commanded-torque variant raised 18 false alarms in the cover run. Details, graphs and the discussion: [`docs/v1.4.md`](docs/v1.4.md).
+
+![v2 and thesis IDS during the covered attack](docs/v1.4/v1.4_attack_step_a4_cover.png)
+
+*Covered attack on a4: v2 (top) is far above its limit within 50 ms although the torque report was falsified.*
+
+### v1.2.0 regression runs
 
 | Run | IDS | Measured |
 |---|---|---|
@@ -326,7 +377,7 @@ Only measured values; "not comparable" where the two releases measured different
 
 *Joint a4's fast and slow readings divided by their limits (dashed line = alarm limit), with the highest reading of the other joints. Grey band: the attack. Red ticks: alarms. v2 (top) jumps two orders of magnitude above the limit; thesis mode (bottom) barely reacts.*
 
-More graphs and the full discussion of these results: [`docs/v1.2.md`](docs/v1.2.md).
+More graphs and the full discussion of the v1.2 results: [`docs/v1.2.md`](docs/v1.2.md).
 
 ---
 
@@ -337,7 +388,7 @@ More graphs and the full discussion of these results: [`docs/v1.2.md`](docs/v1.2
 ```bash
 git clone https://github.com/peeyushkumarmisra/red-teaming-a-industrial-test-bed.git
 cd red-teaming-a-industrial-test-bed
-git checkout mp-core-sim
+git checkout v1.4-ids-attacks-eval
 
 docker compose build robot ids     # builds the two images
 docker compose up -d robot ids     # start both containers
@@ -347,7 +398,7 @@ docker compose up -d robot ids     # start both containers
 
 ```bash
 # robot container (VS Code "Reopen in Container", or: docker compose exec robot bash)
-cd /ws && colcon build --packages-up-to ids_bringup && source install/setup.bash
+cd /ws && colcon build --packages-up-to ids_bringup ids_evaluation && source install/setup.bash
 
 # ids container (docker compose exec ids bash)
 cd /ws && colcon build --packages-up-to ids_ros && source install/setup.bash
@@ -369,6 +420,10 @@ All times are simulation time. Each run writes `data/runs/<date-time>_<scenario>
 | 4. One experiment | (keep running) | `ros2 launch ids_bringup experiment.launch.py scenario:=step_a4 seed:=1` |
 | 5. Regression set | (keep running) | `ros2 run ids_bringup run_campaign --only nominal step_a4 --seeds 1` |
 | 6. Full campaign (45 runs, about 3 h) | (keep running) | `ros2 run ids_bringup run_campaign` |
+| 7. Covered attack (v1.4) | (keep running) | `ros2 run ids_bringup run_campaign --only step_a4_cover --seeds 1` |
+| 8. A sweep (v1.4; plan first) | (keep running) | `ros2 run ids_bringup run_campaign --only 'step_sweep_*' --seeds 1 --dry-run` |
+| 9. Score runs (v1.4) | — | `ros2 run ids_evaluation evaluate RUN_FOLDERS... --out /ws/data/eval` |
+| 10. Compare with baselines (v1.4) | — | `ros2 run ids_evaluation compare_baselines RUN_FOLDERS... --train NOMINAL_RUN --out /ws/data/compare` |
 
 **Check a run:**
 
@@ -379,7 +434,9 @@ ros2 bag info /ws/data/runs/*_step_a4_s1/bag
 
 A healthy run has `status: complete`, `torque_saturation` near 0 and no warnings. The calibration files are `data/calibration/ids_v2.yaml` and `ids_thesis.yaml`; calibrate again after any change to the robot model or the IDS settings (the IDS refuses an old one).
 
-Scenarios: `smoke`, `calibration`, `nominal`, `step_a1` … `step_a7`, `ramp_a1` … `ramp_a7` (see `src/ids_bringup/config/campaign.yaml`).
+Scenarios: `smoke`, `calibration`, `nominal`, `step_a1` … `step_a7`, `ramp_a1` … `ramp_a7`, and from v1.4 `sine_a4`, `scaling_a4`, `freeze_a4`, `replay_a4`, `delay_a4`, `noise_a4`, `drift_mimic_a4`, `coordinated_a2a4`, `step_a4_cover`, and the sweeps `step_sweep_a<j>_m<magnitude>` and `ramp_sweep_a<j>_m<magnitude>` (see `src/ids_bringup/config/campaign.yaml`). `--rerun` repeats runs that are already complete; without it `run_campaign` skips them.
+
+`evaluate` and `compare_baselines` write `report.md`, `events.csv`, `runs.csv`, `per_joint.csv` and figures. They read each run's bag once and cache `export.npz` in the run folder.
 
 ---
 
@@ -392,7 +449,9 @@ Scenarios: `smoke`, `calibration`, `nominal`, `step_a1` … `step_a7`, `ramp_a1`
 | Friction profiles | `src/iiwa_sim/config/friction.yaml` |
 | Start pose | `src/iiwa_sim/config/initial_positions.yaml` |
 | Planner | parameters of `plc_planner` (station positions, heights, move times) |
-| Scenarios and campaign | `src/ids_bringup/config/campaign.yaml` |
+| Scenarios, campaign and sweeps | `src/ids_bringup/config/campaign.yaml` |
+| Attack kinds and the torque cover | `src/ids_attacks/ids_attacks/library.py`, `cover.py`; MitM parameters |
+| Evaluation | command options of `ids_evaluation` (`--help`) |
 | Containers and networks | `compose.yaml` |
 
 Every IDS setting is a ROS parameter with the same dotted name (`detector.debounce`, `ekf.q_friction`, …). The full reference, with defaults and what each one does, is in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
@@ -406,7 +465,7 @@ Every IDS setting is a ROS parameter with the same dotted name (`detector.deboun
 colcon test --packages-select iiwa_control_law ids_core ids_ros && colcon test-result --verbose
 
 # robot container
-colcon test --packages-select iiwa_controllers iiwa_sim ids_experiments ids_bringup
+colcon test --packages-select iiwa_controllers iiwa_sim ids_attacks ids_experiments ids_bringup ids_evaluation
 colcon test-result --verbose
 flake8 --max-line-length 99 --extend-ignore E203 src
 ```
@@ -414,11 +473,13 @@ flake8 --max-line-length 99 --extend-ignore E203 src
 | Package | What the tests prove |
 |---|---|
 | `iiwa_control_law` (7) | The control law, hold, clamp and the Kp·γ signature of a setpoint attack |
-| `ids_core` (59) | Dynamics and derivatives, closed-loop model, EKF, Dual-EWMA, detector, limits, fingerprint, pipeline, end-to-end attack scenarios, no allocation |
-| `ids_ros` (9) | Every parameter reaches the configuration; message conversions are exact |
+| `ids_core` (65) | Dynamics and derivatives, closed-loop model, EKF, Dual-EWMA, detector, limits, fingerprint, pipeline, end-to-end attack scenarios, no allocation, offline replay |
+| `ids_ros` (14) | Every parameter reaches the configuration; message conversions are exact; parameter files load for `ids_replay` |
 | `iiwa_controllers` (22) | Controller state machine, encoder model, tick clock, plugin loading, and the controller–IDS contract (attack → detect → halt → resume) |
 | `iiwa_sim` (18) | Wear schedule, and that the simulated robot equals the IDS's model |
-| `ids_experiments`, `ids_bringup` | Trajectories, handover order, attacks, scenarios, IK, start-up and shutdown, campaign, run files, health checks |
+| `ids_attacks` (40) | Every attack kind, its ground truth, input safety, and the torque cover |
+| `ids_experiments`, `ids_bringup` | Trajectories, handover order, scenarios, IK, start-up and shutdown, campaign, sweeps, cover wiring, run files, health checks |
+| `ids_evaluation` (51) | Layouts, metrics, export, baselines (incl. the momentum observer on a simulated arm), replay calls, reports, commands |
 
 How each check was verified (sandbox, user's machine, or Gazebo), and what is still open: [`docs/TESTING.md`](docs/TESTING.md).
 
@@ -438,7 +499,7 @@ How each check was verified (sandbox, user's machine, or Gazebo), and what is st
 | Shared 2-vCPU VM (Xeon 2.1 GHz), several runs | 181–233 µs | 246–324 µs | 237–427 µs |
 | Development PC (Ryzen 7 5800H) | not measured yet | | |
 
-That is about 2 % of the 10 ms budget. The GPU is not used.
+That is about 2 % of the 10 ms budget. The GPU is not used. Not re-measured in v1.4: the live IDS code path did not change.
 
 ---
 
@@ -446,18 +507,21 @@ That is about 2 % of the 10 ms budget. The GPU is not used.
 
 | Limitation | Status / plan |
 |---|---|
-| **Narrow results**: one seed, attacks on a4 only, one nominal run; no per-hour false-alarm rate, no ramp in simulation | Campaign scheduled after v2.0 |
-| **B4**: an attack onset that is not on a window boundary can also flag a second joint for a few windows (a7 in `step_a4`); the main joint is still right | v1.4 |
-| **B24**: under wear, the friction estimates on a1–a4 trail the truth (up to −18 % on a4 after 240 s); detection was unaffected in the measured run | Estimator decision (needs approval) |
+| **Narrow results**: seed 1, attacks on a4 only (step, covered step), one nominal run of 0.165 h; per-hour rates from minutes of data; no ramp or other attack kind in simulation | Campaign and sweeps scheduled after v2.0 |
+| **B4**: an attack onset that is not on a window boundary can also flag a second joint for a few windows (a7 in v1.2 `step_a4`); the main joint is still right | Results backlog (onset timing) |
+| **B24**: under wear, the friction estimates trail the truth: a4 −24.6 %, a2 −13.1 % after 600 s (v1.4 run); detection was unaffected in the measured runs | Estimator decision (needs approval) |
+| **B16 (v1.4)**: after the covered attack, v2 raised two short a1 alarms 31 s and 50 s after it ended; not seen after the plain attack | One run; repeat over seeds |
+| **Replay timing (v1.4)**: replay assumes each reference is available by its stamp; live and replay agree in ≥ 99.9 % of windows on plain runs, 98.9 % on the covered run | Known limitation of offline replay |
+| **Commanded-torque baseline (v1.4)**: false alarms vary a lot between runs (0 to 18) | Baseline result, not an IDS defect |
 | a7 friction cannot be learned while a7 does not move | Candidate: stop learning on joints without motion |
-| Thesis mode alarms at the first move from home and later under wear | Expected: no friction model |
+| Thesis mode alarms at the first move from home and under wear (31 false alarms in 0.165 h in v1.4) | Expected: no friction model |
 | 0.3 s blind window after each trusted payload change | Accepted, documented |
 | The simulated gripper does not centre the part; the planner re-seats it | Simulation shortcut |
 | White-box: the IDS knows the controller and taps the trusted PLC output; the PLC itself is trusted | Design assumption |
 | The IDS model and Gazebo use the same URDF; only viscous wear (no Coulomb, stiction, backlash) | Real hardware needs identification |
-| Graphs were produced with offline scripts that are not yet in the repository | `ids_evaluation` (C18) in v1.4 |
-| Ramp attacks, other joints and the halt chain are implemented and unit-tested, not run in simulation | Results backlog |
-| CI has not run yet | First push of this branch |
+| Ramp attacks, nine of the ten attack kinds, other joints, sweeps and the halt chain are implemented and unit-tested, not run in simulation | Results backlog |
+| The torque cover assumes the attacker knows the controller gains | Design assumption (white-box attacker) |
+| Results of CI runs on the pushed branches are not recorded here | Check the repository's Actions tab |
 
 ---
 
@@ -465,14 +529,14 @@ That is about 2 % of the 10 ms budget. The GPU is not used.
 
 | Release | Branch | Adds |
 |---|---|---|
-| **v1.4.0** | `mp-attacks-eval` | `ids_evaluation` (latency, false alarms per hour, per-joint table, plots); ten attack kinds (step, ramp, sine, scaling, freeze, replay, delay, noise, coordinated, drift-mimic); sweep runner; offline replay; baselines; falsified torque report; onset timing inside a window (B4) |
+| ~~v1.4.0~~ | `v1.4-ids-attacks-eval` | **Done:** evaluation, ten attack kinds, sweeps, offline replay, baselines, falsified torque report |
 | **v1.6.0** | `mp-sros2` | SROS2 keystore and permissions; a rogue node without credentials is blocked; a stolen-credential MitM passes SROS2 and the IDS still catches it; IDS → robot halt chain |
 | **v1.8.0** | `mp-ot-network` | OpenPLC with a structured-text sequencer, Modbus gateway, engineering-workstation update attack, attacker proxy, web HMI, recording range |
 | **v2.0.0** | `mp-release` | Hardened CI, full documentation, merge into `main`, `legacy/v1` branch |
 
-**Results backlog (after v2.0):** the 45-run v1.2 campaign (seeds 1–3, all joints, step and ramp), every attack kind and sweep, minimum-detectable-attack curves, SROS2 overhead, Modbus attacks.
+**Results backlog (after v2.0):** the 45-run campaign (seeds 1–3, all joints, step and ramp), every attack kind on every joint, the sweeps and the minimum-detectable-attack curves they feed (C25), baselines over all of it, the covered attack over seeds (B16), onset timing inside a window (B4), SROS2 overhead, Modbus attacks.
 
-**Open estimator decisions:** a cap on the slow channel's input (post-attack tail), a7 friction observability, the position-noise setting (NIS median 4.6 against 14 expected), and friction tracking under wear (B24). MEWMA for coordinated attacks is planned for v1.4.
+**Open estimator decisions (need approval):** MEWMA for coordinated attacks (C23), a cap on the slow channel's input (post-attack tail), a7 friction observability (v1.4 run: estimate 41× the truth, as a7 hardly moves), the position-noise setting (NIS median 4.6 against 14 expected), and friction tracking under wear (B24).
 
 ---
 
@@ -509,6 +573,26 @@ Every problem below is logged with its root cause and fix in the project's itera
 | B23 | False alarms at grabs, alarms that never cleared, part drifting | Late baseline freeze, no warm-up, grab order, no part seating | Live slow detector with rollback, warm-up, new grab order, part re-seating | ✅ (2 attempts) |
 | B24 | Friction estimates trail the wear on a1–a4 | Not diagnosed; candidate: friction process noise too small | Open: needs an estimator decision | ⚠️ |
 
+### In v1.4 (evaluation, replay and the pushed branch)
+
+These IDs are from the v1.4 iteration log, which numbers from B1 again.
+
+| # | Problem | Root cause | How we solved it | |
+|---|---|---|---|---|
+| v1.4 B1 | A replay test read a zero limit | The limit is only filled by a calibrating replay | Read it from the calibrating replay | ✅ |
+| v1.4 B2 | The momentum observer showed 15.7 N·m with no external torque | Unstable test plant, and rectangle integration at 100 Hz | Stable test plant; trapezoid integration (< 0.1 N·m) | ✅ |
+| v1.4 B3 | Wrong payload mass in the momentum baseline | Mass was multiplied by the context value | Mass when the context is non-zero, else 0 | ✅ |
+| v1.4 B4 | Friction truth read from the wrong columns and clock | The topic holds 7 coefficients, then 7 torques, with its own stamp | Coefficient columns and the header stamp | ✅ |
+| v1.4 B7 | No figures for v1.2 exports | Old exports carry no limits | `--limits` option | ✅ |
+| v1.4 B8 | The thesis alarm at the attack's step back counted as a 10 s detection | No distinction between during and after the attack | "Before attack end" column; saturated runs excluded | ✅ (2 attempts) |
+| v1.4 B10 | `--train <run folder>` did not match | Runs are named by folder name | Compare the folder name | ✅ |
+| v1.4 B13 | The pushed v1.2 branch lacked the `ids_core` test URDF | `.gitignore` rule `data/` matched every `data` folder | Rule anchored to the root (`/data/`) | ✅ |
+| v1.4 B14, B15 | Hand-edited comments broke `campaign_runner.py` and `monitor.py`, mixed up a test file, changed style settings and dropped final newlines | Code lines changed while editing comments; truncated copies | Restored from the v1.2 branch, newlines added; the commented files of this release replace them | ✅ (2 attempts) |
+| v1.4 B11 | Replay differs from live in some windows | Not diagnosed: probably message arrival order | Kept as a known limitation; shown in every comparison report | ⚠️ |
+| v1.4 B12 | Commanded-torque baseline false alarms vary from run to run | Not diagnosed | Reported as measured | ⚠️ |
+| v1.4 B16 | Two a1 alarms after the covered attack | Not diagnosed (one run) | Repeat over seeds | ⚠️ |
+| v1.4 B17 | Shutdown warning from the planner at the end of a run | rclpy executor race during SIGINT | Harmless; revisit with the v1.6 shutdown work | ⚠️ |
+
 ---
 
 ## Repository layout
@@ -525,8 +609,8 @@ Every problem below is logged with its root cause and fix in the project's itera
 │   ├── ARCHITECTURE.md        nodes, topics, timing, containers
 │   ├── CONFIGURATION.md       every parameter
 │   ├── TESTING.md             test suites and verification status
-│   ├── v1.2.md                release notes, results and graphs
-│   └── v1.2/                  result graphs
+│   ├── v1.2.md, v1.4.md       release notes, results and graphs
+│   └── v1.2/, v1.4/           result graphs
 └── src/
     ├── ids_interfaces/        messages
     ├── iiwa_control_law/      shared control law and robot model
@@ -534,11 +618,13 @@ Every problem below is logged with its root cause and fix in the project's itera
     ├── ids_ros/               the IDS node and its configs
     ├── iiwa_controllers/      the ros2_control tracking controller
     ├── iiwa_sim/              Gazebo robot, wear plugin, world
+    ├── ids_attacks/           attack kinds and the torque cover (no ROS)
     ├── ids_experiments/       PLC planner, MitM attacker, scenarios
-    └── ids_bringup/           launches, runs, campaign
+    ├── ids_bringup/           launches, runs, campaign, sweeps
+    └── ids_evaluation/        export, metrics, replay, baselines, reports
 ```
 
-Every source file starts with a short header explaining what it does and why it matters for detecting attacks. Four files carry no comments because their formats or roles do not allow it: `src/iiwa_sim/NOTICE` (legal text), `src/iiwa_sim/env-hooks/iiwa_sim.dsv.in` (colcon hook format) and the two empty `resource/` marker files.
+Every source file starts with a short header explaining what it does and why it matters for detecting attacks. Six files carry no comments because their formats or roles do not allow it: `src/iiwa_sim/NOTICE` (legal text), `src/iiwa_sim/env-hooks/iiwa_sim.dsv.in` (colcon hook format) and the four empty `resource/` marker files.
 
 ---
 

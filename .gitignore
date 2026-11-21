@@ -1,10 +1,10 @@
-# ==================================================================================================
-# .gitignore - files Git must not track
-# --------------------------------------------------------------------------------------------------
-# colcon output (build/, install/, log/), recorded runs and calibrations (data/), caches, editor 
-# folders and rosbag files. Results are reproduced from the code and the documented runs; large 
-# binary recordings do not belong in the repository.
-# ==================================================================================================
+# =============================================================================
+#  .gitignore - files Git must not track
+# -----------------------------------------------------------------------------
+#  colcon output (build/, install/, log/), recorded runs and calibrations (data/),
+#  caches, editor folders and rosbag files. Results are reproduced from the code and
+#  the documented runs; large binary recordings do not belong in the repository.
+# =============================================================================
 
 build/
 install/

@@ -1,3 +1,10 @@
+// =============================================================================
+//  sha256.cpp - SHA-256 (FIPS 180-4)
+// -----------------------------------------------------------------------------
+//  Standard SHA-256, checked against known test vectors in test_calibration.cpp.
+//  Used only to fingerprint the robot model and IDS settings, not for security.
+// =============================================================================
+
 #include "ids_core/sha256.hpp"
 
 #include <array>

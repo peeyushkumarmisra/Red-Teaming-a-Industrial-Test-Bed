@@ -1,29 +1,30 @@
-// ==================================================================================================
+// =============================================================================
 //  devcontainer.json - VS Code opens the robot container
-// --------------------------------------------------------------------------------------------------
-//  VS Code ("Dev Containers: Reopen in Container") attaches to the `robot` service of compose.yaml
-//  and also starts the `ids` service, so the editor, the simulation and the IDS run on exactly the
-//  toolchain the results were produced with. The workspace is /ws (the repository's src/ and data/)
-// ==================================================================================================
+// -----------------------------------------------------------------------------
+//  VS Code ("Dev Containers: Reopen in Container") attaches to the `robot` service of
+//  compose.yaml and also starts the `ids` service, so the editor, the simulation and
+//  the IDS run on exactly the toolchain the results were produced with.
+//  The workspace is /ws (the repository's src/ and data/ are mounted there).
+// =============================================================================
 
 {
-    // Docker & Services Setup
-    "name": "thesis-robot",
-    "dockerComposeFile": ["../compose.yaml"], // Point VS Code to your main Docker Compose blueprint
-    "service": "robot", // The primary container VS Code will attach to for coding
-    "runServices": ["robot", "ids"], // Start both the main robot container and the IDS container together
-    "workspaceFolder": "/ws", // Open straight into the '/ws' workspace folder when connected
-    "remoteUser": "dev", // Log in as the non-root 'dev' user so file permissions don't break
-    "shutdownAction": "none", // Keep the containers running in the background even after you close VS Code
-    // Automatic VS Code Extensions (Installed automatically inside the container)
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "ms-iot.vscode-ros",        // ROS 2 syntax, node tools, and URDF preview
-                "ms-vscode.cpptools",       // C++ IntelliSense, debugging, and code navigation
-                "ms-vscode.cmake-tools",    // CMake build configuration and target helper
-                "ms-python.python"          // Python language support and debugging
-            ]
-        }
+  "name": "thesis-robot",
+  "dockerComposeFile": ["../compose.yaml"],
+  "service": "robot",
+  // Start the IDS container too: experiments need both.
+  "runServices": ["robot", "ids"],
+  "workspaceFolder": "/ws",
+  "remoteUser": "dev",
+  // Keep the containers running when VS Code closes (long runs survive).
+  "shutdownAction": "none",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "ms-python.python"
+      ]
     }
+  }
 }

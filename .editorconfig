@@ -1,41 +1,42 @@
-# ==================================================================================================
-# .editorconfig - Ensures consistent coding styles for C++ files across the project.
-# --------------------------------------------------------------------------------------------------
-# VS Code uses EditorConfig extension and most other editors read this file. It agrees with the
-# other repository rules such as:-
-# 1) LF line endings in .gitattributes
-# 2) 4-space indents in .clang-format (Google style)
-# 3) 4-space Python indents expected by flake8
-# This Consistent formatting keeps each change to the IDS and the sim short and easy to review
-# ==================================================================================================
+# =============================================================================
+#  .editorconfig - the same basic formatting in every editor
+# -----------------------------------------------------------------------------
+#  VS Code (with the EditorConfig extension) and most other editors read this
+#  file. It agrees with the other repository rules: LF line endings as in
+#  .gitattributes, 2-space indents as in .clang-format and ROS 2 style, and
+#  4-space Python as Black and flake8 expect. Consistent formatting keeps each
+#  change to the IDS and the simulation small and easy to review.
+# =============================================================================
 
-# This is the top-level settings file (Don't look in root folder)
+# This is the top-level settings file: do not look in parent folders.
 root = true
 
-# --------------------------------------------------------------------------------------------------
-# All files: C++, CMake, URDF/xacro/SDF, YAML, launch and config files
-# --------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+#  All files: C++, CMake, URDF/xacro/SDF, YAML, launch and config files
+# -----------------------------------------------------------------------------
 [*]
-# UTF-8 encoding (text) with LF line endings (the same rule as .gitattributes)
+# UTF-8 text with LF line endings (the same rule as .gitattributes).
 charset = utf-8
 end_of_line = lf
 
-# End every file with a new line and delete any spaces left at the end of lines
+# End every file with a newline, and delete spaces left at the end of lines.
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-# Indent with 4 spaces (Google style for C++, XML and YAML)
+# Indent with 2 spaces (ROS 2 style for C++, XML and YAML).
 indent_style = space
-indent_size = 4
+indent_size = 2
 
-# --------------------------------------------------------------------------------------------------
-# Python: 4 spaces (PEP 8 and flake8)
-# --------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+#  Python: 4 spaces (PEP 8, Black and flake8)
+# -----------------------------------------------------------------------------
 [*.py]
 indent_size = 4
 
-# --------------------------------------------------------------------------------------------------
-# Makefiles: Real Tab Characters (mainly for future work)
-# --------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+#  Makefiles: real tab characters
+# -----------------------------------------------------------------------------
+# make refuses commands indented with spaces. There is no Makefile today;
+# the rule is here so that a future one works.
 [Makefile]
 indent_style = tab

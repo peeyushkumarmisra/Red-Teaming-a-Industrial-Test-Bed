@@ -1,4 +1,4 @@
-# Architecture — v1.2
+# Architecture — v1.4
 
 How the simulated cell, the attacker and the IDS fit together: nodes, topics, timing, containers and the life of one experiment run.
 
@@ -39,10 +39,12 @@ flowchart LR
 | `ids_ros` | C++ | `ids_node`: ROS wrapper, parameters, two instances |
 | `iiwa_controllers` | C++ | `ReferenceTrackingController` (`ros2_control` plugin) and its ROS-free core |
 | `iiwa_sim` | C++/xacro | Robot description, FrictionDrift Gazebo plugin, world, controller config |
+| `ids_attacks` | Python | Ten attack kinds with ground truth, torque-report cover (no ROS; v1.4) |
 | `ids_experiments` | Python | `plc_planner`, `mitm`, scenario format, IK, trajectories |
-| `ids_bringup` | Python | Launch files, run folders, run supervisor, campaign runner |
+| `ids_bringup` | Python | Launch files, run folders, run supervisor, campaign runner, sweeps |
+| `ids_evaluation` | Python | Offline: bag export, metrics, `ids_replay` calls, baselines, figures, reports (v1.4) |
 
-Dependency order: `ids_interfaces`, `iiwa_control_law` → `ids_core` → `ids_ros`; `iiwa_control_law` → `iiwa_controllers` → `iiwa_sim` → `ids_experiments` → `ids_bringup`.
+Dependency order: `ids_interfaces`, `iiwa_control_law` → `ids_core` → `ids_ros`; `iiwa_control_law` → `iiwa_controllers` → `iiwa_sim` → `ids_attacks` → `ids_experiments` → `ids_bringup` → `ids_evaluation` (which also uses `ids_ros` for `ids_replay`).
 
 ## 3. Nodes and topics
 
@@ -50,7 +52,8 @@ Dependency order: `ids_interfaces`, `iiwa_control_law` → `ids_core` → `ids_r
 |---|---|---|---|
 | `/plc/reference` | `JointReference` | `plc_planner` → `mitm`, `ids_node` ×2, `run_supervisor` | reliable, 100 Hz |
 | `/robot/reference` | `JointReference` | `mitm` → controller | reliable, 100 Hz |
-| `/robot/measurement` | `JointMeasurement` | controller → `ids_node` ×2, `run_supervisor` | reliable, 100 Hz |
+| `/robot/measurement` | `JointMeasurement` | controller → `ids_node` ×2, `run_supervisor` (covered runs: `mitm` relays it with a falsified `effort_applied`) | reliable, 100 Hz |
+| `/robot/measurement_raw` | `JointMeasurement` | controller → `mitm`, recorder (covered runs only, v1.4) | reliable, 100 Hz |
 | `/ids/status`, `/ids_thesis/status` | `IdsStatus` | `ids_node` → `run_supervisor`, recorder | reliable, one per window |
 | `/ids/alarm`, `/ids_thesis/alarm` | `std_msgs/Bool` | `ids_node` → controller (`/ids/alarm`) | reliable, transient-local, on change |
 | `/ids/reset`, `/ids_thesis/reset` | `std_srvs/Trigger` | operator → `ids_node` | service |
@@ -127,5 +130,6 @@ The IDS runs in its own container across runs. When simulation time jumps back a
 | `controllers.yaml` | Controller settings with this run's seed and halt setting |
 | `summary.yaml` | `status` (complete / no_reference / interrupted), elapsed time, reference and measurement counts, per-IDS status counts, modes, alarm samples, first alarm relative to the first reference, torque saturation, warnings |
 | `bag/` | MCAP recording of the topics above, recorded in simulation time |
+| `export.npz` | Written by `ids_evaluation` on first use: the arrays it scores (cached) |
 
-Use `IdsStatus` (one stamped message per window) for evaluation, not the alarm topic. A run with more than 1 % of windows at a torque limit is flagged as not nominal and must be excluded.
+Use `IdsStatus` (one stamped message per window) for evaluation, not the alarm topic; `ids_evaluation` does this. The IDS log prints simulation time, while scenarios and reports count from the first trusted reference. A run with more than 1 % of windows at a torque limit is flagged as not nominal and must be excluded.

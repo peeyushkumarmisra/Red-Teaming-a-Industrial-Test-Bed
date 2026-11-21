@@ -1,3 +1,11 @@
+// =============================================================================
+//  tracking_core.cpp - state machine and torque
+// -----------------------------------------------------------------------------
+//  Every tick: apply the trusted payload context (gravity of the held part), update the
+//  state machine, then compute the torque with the shared control law
+//  (iiwa_control_law), the same law the IDS replays.
+// =============================================================================
+
 #include "iiwa_controllers/tracking_core.hpp"
 
 #include <algorithm>
@@ -17,6 +25,7 @@ void TrackingCore::setReference(const iiwa_control_law::ReferenceSample& sample)
   has_reference_ = true;
 }
 
+// Gravity feed-forward follows the payload context in the reference.
 void TrackingCore::applyContext() {
   if (!has_reference_) {
     return;
@@ -44,6 +53,7 @@ void TrackingCore::startResume(double t) {
 
 const TrackingOutput& TrackingCore::update(double t, double period, const Vec7& q, const Vec7& v,
                                            bool alarm) {
+  // Deadline guard: count late updates (the IDS assumes 1 ms ticks).
   if (period > config_.overrun_factor * config_.nominal_period) {
     ++overruns_;
   }
@@ -52,7 +62,9 @@ const TrackingOutput& TrackingCore::update(double t, double period, const Vec7& 
     hold_set_ = true;
   }
   applyContext();
+  // Starved: the reference stream stopped.
   const bool stale = has_reference_ && t - reference_.stamp > config_.reference_timeout;
+  // Halt only if the halt chain is enabled.
   const bool halt = config_.halt_on_alarm && alarm;
   switch (out_.state) {
     case TrackingState::kWaiting:
@@ -97,6 +109,7 @@ const TrackingOutput& TrackingCore::update(double t, double period, const Vec7& 
       out_.torque = computeTorque(config_.gains, q, v,
                                   referenceAt(reference_, t, config_.reference_hold), g);
       break;
+    // Blend: move the target from the hold position to the reference over resume_time.
     case TrackingState::kResuming: {
       const double alpha = std::clamp((t - resume_start_) / config_.resume_time, 0.0, 1.0);
       const ReferencePoint r = referenceAt(reference_, t, config_.reference_hold);
@@ -104,10 +117,12 @@ const TrackingOutput& TrackingCore::update(double t, double period, const Vec7& 
       out_.torque = computeTorque(config_.gains, q, v, blended, g);
       break;
     }
+    // Waiting, halted or starved: hold the position where the arm was.
     default:
       out_.torque = holdTorque(config_.gains, q, v, hold_, g);
       break;
   }
+  // Tell the IDS whenever the controller is not simply tracking.
   out_.halted = out_.state != TrackingState::kTracking;
   out_.reference_seq = has_reference_ ? reference_.seq : 0;
   return out_;

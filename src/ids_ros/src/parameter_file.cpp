@@ -1,3 +1,11 @@
+// =============================================================================
+//  parameter_file.cpp - read the IDS parameter YAML without ROS
+// -----------------------------------------------------------------------------
+//  The defaults of the node's parameter table give each setting its type, so a value in
+//  the file that does not fit (text where a number is expected, a list of the wrong
+//  kind) is rejected instead of being guessed.
+// =============================================================================
+
 #include "ids_ros/parameter_file.hpp"
 
 #include <stdexcept>
@@ -9,6 +17,7 @@ namespace ids_ros {
 
 namespace {
 
+// Convert one YAML value to the declared parameter type.
 ParameterValue convert(const YAML::Node& node, const ParameterValue& like,
                        const std::string& name) {
   try {
@@ -23,6 +32,7 @@ ParameterValue convert(const YAML::Node& node, const ParameterValue& like,
   }
 }
 
+// detector: {debounce: 5} becomes detector.debounce = 5, as ROS names it.
 void flatten(const YAML::Node& node, const std::string& prefix, const ParameterMap& defaults,
              ParameterMap& out) {
   for (const auto& item : node) {

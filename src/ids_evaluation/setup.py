@@ -1,3 +1,10 @@
+# =============================================================================
+#  setup.py - Python package and its five commands
+# -----------------------------------------------------------------------------
+#  ros2 run ids_evaluation export_run | evaluate | compare_baselines | replay_run |
+#  split_legacy (see cli.py).
+# =============================================================================
+
 from setuptools import find_packages, setup
 
 package_name = 'ids_evaluation'

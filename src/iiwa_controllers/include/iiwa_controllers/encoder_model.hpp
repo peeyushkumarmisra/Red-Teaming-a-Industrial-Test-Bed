@@ -1,3 +1,12 @@
+// =============================================================================
+//  encoder_model.hpp - what a real joint sensor would report
+// -----------------------------------------------------------------------------
+//  Positions are rounded to a 20-bit encoder step (about 6e-6 rad) and velocities get
+//  seeded Gaussian noise. Why it matters: Gazebo's joint states are perfect; without
+//  sensor noise the IDS would be tested against an unrealistically clean signal.
+//  The run's seed changes the noise, so repeated runs are independent.
+// =============================================================================
+
 #pragma once
 
 #include <cmath>
@@ -9,6 +18,7 @@
 
 namespace iiwa_controllers {
 
+// Resolution, velocity noise and seed.
 struct EncoderConfig {
   int position_bits = 20;
   double velocity_noise = 1e-3;
@@ -27,6 +37,7 @@ class EncoderModel {
 
   double resolution() const { return resolution_; }
 
+  // Turn the true joint state into the measured one.
   void sense(const iiwa_control_law::Vec7& q, const iiwa_control_law::Vec7& v,
              iiwa_control_law::Vec7& qm, iiwa_control_law::Vec7& vm) {
     for (int i = 0; i < iiwa_control_law::kDof; ++i) {

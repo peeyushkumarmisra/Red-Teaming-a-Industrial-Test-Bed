@@ -1,5 +1,14 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   iiwa_control_law - one control law for the robot and the IDS
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   The IDS predicts the robot by running the very same control law the controller
+   runs. Keeping that law in one package means the two can never drift apart.
+  =============================================================================
+-->
+
 <package format="3">
   <name>iiwa_control_law</name>
   <version>1.2.0</version>

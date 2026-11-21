@@ -1,3 +1,11 @@
+# =============================================================================
+#  plots.py - figures for the report
+# -----------------------------------------------------------------------------
+#  Statistic / limit over time for each detector (log scale; the dashed line is the
+#  limit, red ticks show alarms, the grey band the attack), and the v2 friction
+#  estimate against the simulator's friction truth.
+# =============================================================================
+
 import math
 
 import matplotlib
@@ -9,6 +17,8 @@ import numpy as np  # noqa: E402
 from ids_evaluation import layout  # noqa: E402
 
 WARMUP = 3.99
+# Configured wear schedule (iiwa_sim friction.yaml), used as truth only when a run has no
+# /sim/friction_truth.
 WEAR = {'delay': 30.0,
         'initial': np.array([4.0, 4.0, 2.0, 2.0, 0.4, 0.2, 0.1]),
         'rate': np.array([0.004, 0.004, 0.002, 0.002, 0.0004, 0.0002, 0.0001]),
@@ -49,6 +59,7 @@ def wear_truth(t_abs):
     return np.clip(grown, 0.0, np.maximum(WEAR['max'], WEAR['initial']))
 
 
+# Show the maximum per bin, so short peaks stay visible in long runs.
 def binned_max(x, y, width):
     if width is None or len(x) < 2:
         return x, y
@@ -137,6 +148,7 @@ def statistics_figure(panels, events, start, title, path, joint=None, xlim=None,
     plt.close(fig)
 
 
+# Returns estimate/truth - 1 over the last 10 s, per joint.
 def friction_figure(t, status, start, truth_t, truth, title, path):
     s = layout.pad_status(status)
     armed = (s[:, layout.MODE] == layout.ARMED) & np.any(s[:, layout.FRICTION] != 0.0, axis=1)

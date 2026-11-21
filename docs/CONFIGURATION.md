@@ -1,6 +1,6 @@
-# Configuration reference — v1.2
+# Configuration reference — v1.4
 
-Every setting of the testbed, where it lives, its default and what it does. Values are the ones used for the v1.2 results unless stated.
+Every setting of the testbed, where it lives, its default and what it does. Values are the ones used for the v1.2 and v1.4 results unless stated.
 
 > [!WARNING]
 > **Any change to an IDS setting marked 🔒 changes the calibration fingerprint.** The IDS then refuses the old calibration (mode `fault`) until you calibrate again. The controller's gains and limits must match the IDS's model settings, otherwise the IDS predicts a different robot.
@@ -151,6 +151,9 @@ File: `src/iiwa_sim/config/controllers.yaml`. The experiment launch writes a cop
 |---|---|---|
 | `scenario_file` | `""` | Scenario YAML with the attacks; empty = forward unchanged |
 | `input_topic` / `output_topic` / `truth_topic` | `/plc/reference` / `/robot/reference` / `/attack/truth` | Topics |
+| `measurement_input` / `measurement_output` | `/robot/measurement_raw` / `/robot/measurement` | Relay used only when the scenario sets `cover_torque` (v1.4) |
+| `kp`, `kd` | controller gains | What the cover assumes about the controller |
+| `reference_hold` | `0.05` s | Longest time a setpoint is held, for the cover's torque computation |
 
 ---
 
@@ -168,9 +171,9 @@ attacks:
   - {id: 1, kind: step, joint: 4, magnitude: 0.02, start: 120.0, duration: 10.0}
 ```
 
-`kind`: `step` (magnitude in rad) or `ramp` (rad/s); `joint`: 1–7. Attacks must not overlap and must end within `duration`.
+`kind`: `step`, `ramp`, `sine`, `scaling`, `freeze`, `replay`, `delay`, `noise`, `coordinated` or `drift_mimic` (v1.4; effects in [`docs/v1.4.md`](v1.4.md#2-the-ten-attack-kinds-and-the-torque-cover)). `joint`: 1–7, or `joints: [2, 4]` with `magnitudes: [...]` for several joints. `frequency` (Hz) for `sine`, `lag` (s) for `replay` and `delay`; `freeze`, `replay` and `delay` need no magnitude. `cover_torque: true` adds the falsified torque report. Attacks must not overlap and must end within `duration`.
 
-**Campaign** (`config/campaign.yaml`): `defaults`, single `scenarios` (`smoke` 60 s, `calibration` 130 s with nominal friction, `nominal` 600 s), `families` expanded per joint (`step_a1` … `step_a7`: 0.02 rad for 10 s; `ramp_a1` … `ramp_a7`: 0.001 rad/s for 30 s; both at 120 s in 180 s runs), and the default order. Seeds 1–3 by default.
+**Campaign** (`config/campaign.yaml`): `defaults`, single `scenarios` (`smoke` 60 s, `calibration` 130 s with nominal friction, `nominal` 600 s), `families` expanded per joint (`step_a1` … `step_a7`: 0.02 rad for 10 s; `ramp_a1` … `ramp_a7`: 0.001 rad/s for 30 s; both at 120 s in 180 s runs), and the default order. Seeds 1–3 by default. v1.4 adds families on a4 for every new kind, `coordinated_a2a4`, `step_a4_cover`, and `sweeps:` with `joints` and `magnitudes` lists, expanded to `<sweep>_a<joint>_m<magnitude>` (`step_sweep`: 0.0025–0.02 rad; `ramp_sweep`: 0.00025–0.001 rad/s; all 7 joints). Sweeps and the new kinds are not in the default order.
 
 ## 7. Launch and command-line options
 
@@ -180,6 +183,11 @@ attacks:
 | `ros2 launch ids_bringup sim.launch.py` | `friction_profile` (`wear`), `controllers_file`, `payload_mass` (`5.0`), `gui` (`false`) |
 | `ros2 launch ids_ros ids.launch.py` | `run_mode` (`armed` \| `calibrate`), `thesis` (`true`) |
 | `ros2 run ids_bringup run_campaign` | `--only NAME/PATTERN …`, `--seeds N …`, `--dry-run`, `--rerun`, `--gui`, `--halt-on-alarm`, `--output-dir`, `--campaign`, `--pause` (5 s) |
+
+| `ros2 run ids_evaluation evaluate` | `RUN… --out DIR`, `--legacy FILE`, `--campaign`, `--calibration-dir` (`/ws/data/calibration`), `--limits V2 V2_SLOW THESIS THESIS_SLOW`, `--include-saturated`, `--grace` (1 s), `--tail` (30 s), `--no-plots` |
+| `ros2 run ids_evaluation compare_baselines` | as `evaluate`, plus `--train RUN`, `--urdf` (default: xacro of `iiwa_sim`), `--duration` (120 s), `--skip-replay`, `--skip-momentum`, `--replay-binary` |
+| `ros2 run ids_evaluation export_run` / `replay_run` / `split_legacy` | `RUN… [--force]` / `RUN --out OUT.npz (--calibrate C \| --calibration C) [--params ids.yaml] [--set name=value]` / `EXPORT --out DIR` |
+| `ids_replay` (installed by `ids_ros`) | `--urdf --params --reference --measurement --output`, `--calibrate OUT [--duration S]` or `--calibration IN`, `--warmup` (2 s), `--set name=value` |
 
 **Run supervisor** (`run_supervisor`, set by the experiment launch): `duration`, `summary_file`, `start_timeout` (300 s wall time), `progress_period` (30 s), `namespaces` (`ids`, `ids_thesis`), `effort_limits`, `saturation_warning` (0.01 = 1 % of windows).
 

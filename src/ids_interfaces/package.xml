@@ -1,5 +1,14 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   ids_interfaces - message definitions
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   The contract between the cell and the IDS: the trusted reference, the robot's
+   measurements, the IDS status and the attack ground truth.
+  =============================================================================
+-->
+
 <package format="3">
   <name>ids_interfaces</name>
   <version>1.2.0</version>

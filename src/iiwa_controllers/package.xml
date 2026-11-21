@@ -1,5 +1,14 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   iiwa_controllers - joint tracking controller for the KUKA iiwa
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Follows the 100 Hz reference at 1 kHz with the shared control law, models the
+   encoders, can halt on an IDS alarm, and publishes the measurements the IDS needs.
+  =============================================================================
+-->
+
 <package format="3">
   <name>iiwa_controllers</name>
   <version>1.2.0</version>

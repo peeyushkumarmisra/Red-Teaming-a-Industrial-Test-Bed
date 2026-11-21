@@ -1,6 +1,18 @@
 <?xml version="1.0"?>
+<!--
+  =============================================================================
+   cell.sdf - the work cell
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   World "cell": 1 ms physics steps (matching the 1 kHz controller), the physics, user
+   commands and scene broadcaster systems, a ground plane, and two visual station pads:
+   source at (-0.5, 0) and destination at (0, 0.5). The payload cube is spawned by the
+   experiment launch.
+  =============================================================================
+-->
+
 <sdf version="1.9">
   <world name="cell">
+    <!-- One physics step per controller tick. -->
     <physics name="1ms" type="ignored">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1.0</real_time_factor>
@@ -8,6 +20,7 @@
     <gravity>0 0 -9.81</gravity>
 
     <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <!-- Lets the launch spawn the payload and re-seat it at a station. -->
     <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
     <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
 
@@ -45,6 +58,7 @@
       </link>
     </model>
 
+    <!-- Pick-up pad (visual only). -->
     <model name="source_station">
       <static>true</static>
       <pose>-0.5 0 0.0005 0 0 0</pose>
@@ -63,6 +77,7 @@
       </link>
     </model>
 
+    <!-- Drop-off pad (visual only). -->
     <model name="destination_station">
       <static>true</static>
       <pose>0 0.5 0.0005 0 0 0</pose>

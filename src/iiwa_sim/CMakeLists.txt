@@ -1,3 +1,12 @@
+# =============================================================================
+#  iiwa_sim/CMakeLists.txt - the simulated KUKA iiwa cell
+# -----------------------------------------------------------------------------
+#  Builds the FrictionDrift Gazebo plugin (only if gz-sim 8 is installed), its
+#  header-only friction model (tested anywhere), and installs the robot description,
+#  meshes, world and configuration. An environment hook tells Gazebo where to find
+#  the plugin and the meshes.
+# =============================================================================
+
 cmake_minimum_required(VERSION 3.16)
 project(iiwa_sim VERSION 1.2.0 LANGUAGES CXX)
 
@@ -15,6 +24,7 @@ if(NOT ament_cmake_FOUND)
   include(CTest)
 endif()
 
+# The wear schedule and force composition: header-only, unit-tested without Gazebo.
 add_library(iiwa_friction_model INTERFACE)
 target_include_directories(iiwa_friction_model INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -30,6 +40,8 @@ if(gz-sim8_FOUND)
   find_package(gz-msgs10 REQUIRED)
   include(CheckCXXSourceCompiles)
   set(CMAKE_REQUIRED_LIBRARIES gz-sim8::gz-sim8)
+  # Does this gz-sim support ConfigurePriority()? If yes, FrictionDrift asks to run
+  # after gz_ros2_control has written the torque (B14).
   check_cxx_source_compiles("
 #include <memory>
 #include <gz/sim/System.hh>
@@ -50,6 +62,7 @@ int main() { return 0; }
   if(IIWA_SIM_HAS_SYSTEM_PRIORITY)
     target_compile_definitions(iiwa_friction_drift PRIVATE IIWA_SIM_HAS_SYSTEM_PRIORITY)
   else()
+    # Fallback: plugin order in the URDF still puts FrictionDrift last.
     message(WARNING "gz-sim8 has no ISystemConfigurePriority: FrictionDrift relies on being declared after gz_ros2_control")
   endif()
   install(TARGETS iiwa_friction_drift LIBRARY DESTINATION lib)
@@ -62,6 +75,7 @@ if(BUILD_TESTING)
     find_package(ament_cmake_gtest REQUIRED)
     find_package(ament_cmake_pytest REQUIRED)
     ament_add_gtest(test_friction_model test/test_friction_model.cpp)
+    # Expands the xacro and checks the description against the IDS model.
     ament_add_pytest_test(test_description test/test_description.py TIMEOUT 120)
   else()
     find_package(GTest REQUIRED)
@@ -75,6 +89,7 @@ endif()
 if(ament_cmake_FOUND)
   install(DIRECTORY config meshes urdf worlds DESTINATION share/${PROJECT_NAME})
   install(FILES NOTICE DESTINATION share/${PROJECT_NAME})
+  # Adds lib/ to GZ_SIM_SYSTEM_PLUGIN_PATH and share/ to GZ_SIM_RESOURCE_PATH.
   ament_environment_hooks("${CMAKE_CURRENT_SOURCE_DIR}/env-hooks/${PROJECT_NAME}.dsv.in")
   ament_package()
 endif()

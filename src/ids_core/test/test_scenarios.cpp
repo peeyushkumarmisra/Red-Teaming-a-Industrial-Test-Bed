@@ -1,3 +1,15 @@
+// =============================================================================
+//  test_scenarios.cpp - end-to-end attack scenarios on the synthetic cell
+// -----------------------------------------------------------------------------
+//  The claims of the project, checked on the synthetic cell:
+//  - wear alone raises no alarm;
+//  - a 0.02 rad setpoint step on any joint is detected within 100 ms on that joint;
+//  - a slow ramp is caught by physics alone;
+//  - torque tampering after the controller is caught by the command check;
+//  - the dissertation's design (commanded-torque input) is blind to a setpoint MitM;
+//  - a payload handover inside the context guard raises no alarm.
+// =============================================================================
+
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -117,6 +129,7 @@ Mask7 only(int joint) {
 
 }  // namespace
 
+// Friction wear only: no alarm.
 TEST(Scenario, NominalMotionWithFrictionWearRaisesNoAlarm) {
   Attack none;
   none.start = 120.0;
@@ -130,6 +143,7 @@ TEST(Scenario, NominalMotionWithFrictionWearRaisesNoAlarm) {
   }
 }
 
+// Step on each of the 7 joints: detected in under 100 ms and attributed correctly.
 TEST(Scenario, SetpointStepOnEveryJointIsDetectedWithin100msAndAttributed) {
   for (int j = 0; j < 7; ++j) {
     Attack a;
@@ -147,6 +161,7 @@ TEST(Scenario, SetpointStepOnEveryJointIsDetectedWithin100msAndAttributed) {
   }
 }
 
+// An onset on a window boundary flags only the attacked joint (contrast: B4).
 TEST(Scenario, WindowAlignedOnsetGivesExactPhysicsAttribution) {
   Attack a;
   a.kind = AttackKind::kTorqueBias;
@@ -162,6 +177,7 @@ TEST(Scenario, WindowAlignedOnsetGivesExactPhysicsAttribution) {
   EXPECT_EQ(mid.primary, 4);
 }
 
+// A slow ramp is caught without the command check.
 TEST(Scenario, SlowSetpointRampIsCaughtByPhysicsAlone) {
   Attack a;
   a.kind = AttackKind::kSetpointRamp;
@@ -176,6 +192,7 @@ TEST(Scenario, SlowSetpointRampIsCaughtByPhysicsAlone) {
   EXPECT_EQ(o.physics, only(3));
 }
 
+// Torque changed after the controller is caught.
 TEST(Scenario, TorqueTamperAfterTheControllerIsDetected) {
   Attack a;
   a.kind = AttackKind::kTorqueBias;
@@ -189,6 +206,7 @@ TEST(Scenario, TorqueTamperAfterTheControllerIsDetected) {
   EXPECT_EQ(o.command, only(5));
 }
 
+// Thesis mode misses a setpoint MitM that v2 catches (finding M1).
 TEST(Scenario, ThesisFaithfulTorqueInputIsBlindToASetpointMitm) {
   Attack a;
   a.kind = AttackKind::kSetpointStep;
@@ -202,6 +220,7 @@ TEST(Scenario, ThesisFaithfulTorqueInputIsBlindToASetpointMitm) {
   EXPECT_LE(seen.first_alarm, 0.1);
 }
 
+// Grab and release inside the guard: no alarm (B9, B10).
 TEST(Scenario, PayloadHandoverInsideTheContextGuardRaisesNoAlarm) {
   const auto alarms = [](const IdsConfig& cfg, const Calibration& cal) {
     IdsPipeline ids(cfg, urdf());

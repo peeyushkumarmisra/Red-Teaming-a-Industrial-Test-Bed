@@ -1,5 +1,14 @@
+# =============================================================================
+#  controllers.yaml - controller_manager and tracking controller settings
+# -----------------------------------------------------------------------------
+#  Loaded by gz_ros2_control inside Gazebo. The experiment launch writes a copy per run
+#  with that run's noise_seed and halt_on_alarm. Gains are not listed: the controller
+#  uses the same defaults as the IDS (iiwa_control_law::Gains::iiwaDefault).
+# =============================================================================
+
 controller_manager:
   ros__parameters:
+    # 1 kHz control loop: the IDS model assumes exactly this (controller_period 0.001).
     update_rate: 1000
     use_sim_time: true
     joint_state_broadcaster:
@@ -18,15 +27,21 @@ reference_tracking_controller:
       - joint_a6
       - joint_a7
     tip_joint: joint_a7
+    # The IDS -> robot halt chain is off in v1.2 runs (planned for v1.6).
     halt_on_alarm: false
+    # Exact 1 ms timeline in simulation (B19).
     tick_clock: true
     reference_hold: 0.05
     reference_timeout: 0.5
     resume_time: 0.5
+    # Sensor model: 20-bit encoders and 0.001 rad/s velocity noise.
     encoder_bits: 20
     velocity_noise: 0.001
+    # Replaced per run by the run's seed.
     noise_seed: 1
+    # One measurement (= one IDS window) every 10 ms.
     measurement_decimation: 10
+    # The controller listens AFTER the MitM node; the IDS listens before it.
     reference_topic: /robot/reference
     measurement_topic: /robot/measurement
     alarm_topic: /ids/alarm

@@ -1,3 +1,13 @@
+// =============================================================================
+//  synthetic_cell.hpp - a simulated robot cell without Gazebo
+// -----------------------------------------------------------------------------
+//  A Pinocchio plant at 4 kHz, the real control law at 1 kHz, encoder noise, friction
+//  that wears, and optional attacks (setpoint step, setpoint ramp, torque bias). It
+//  feeds the real IdsPipeline, so detection, attribution and false alarms can be tested
+//  in seconds on any machine. Limitation: it uses the same URDF as the IDS, so it has
+//  no model mismatch; Gazebo runs test that.
+// =============================================================================
+
 #pragma once
 
 #include <cmath>
@@ -13,6 +23,7 @@
 
 namespace ids_core::test {
 
+// Attacks the cell can inject.
 enum class AttackKind { kNone, kSetpointStep, kSetpointRamp, kTorqueBias };
 
 struct Attack {
@@ -22,6 +33,7 @@ struct Attack {
   double start = 0.0;
 };
 
+// Plant step, controller rate, noise, friction and wear settings.
 struct CellConfig {
   double plant_dt = 0.00025;
   double controller_dt = 0.001;
@@ -40,6 +52,7 @@ struct CellConfig {
   std::uint64_t seed = 1;
 };
 
+// Runs plant, controller and IDS together; records alarms and attribution.
 class SyntheticCell {
  public:
   explicit SyntheticCell(const CellConfig& config = CellConfig{})
@@ -60,6 +73,8 @@ class SyntheticCell {
   }
 
   void setAttack(const Attack& attack) { attack_ = attack; }
+  // Optionally keep every trusted reference the cell sends, so a test can save the run as
+  // arrays and replay it offline (test_replay).
   void logReferences(std::vector<iiwa_control_law::ReferenceSample>* log) { reference_log_ = log; }
   double time() const { return static_cast<double>(tick_) * config_.controller_dt; }
   const Vec7& friction() const { return friction_; }

@@ -1,4 +1,4 @@
-# Testing and verification — v1.2
+# Testing and verification — v1.4
 
 What is tested, how to run it, and how each claim of this release was verified. Every check is labelled with **where** it ran:
 
@@ -17,8 +17,8 @@ colcon test --packages-select iiwa_control_law ids_core ids_ros
 colcon test-result --verbose
 
 # robot container: controller, simulation, planner and attacker, bringup
-cd /ws && colcon build --packages-up-to ids_bringup
-colcon test --packages-select iiwa_controllers iiwa_sim ids_experiments ids_bringup
+cd /ws && colcon build --packages-up-to ids_bringup ids_evaluation
+colcon test --packages-select iiwa_controllers iiwa_sim ids_attacks ids_experiments ids_bringup ids_evaluation
 colcon test-result --verbose
 
 # Python style (the repository's .flake8 is not mounted into the containers, so pass its settings)
@@ -41,17 +41,36 @@ The ROS-free libraries also build and test with plain CMake outside ROS (`ids_co
 | | `test_pipeline` | 7 | Modes, calibrate once, refusal, command check, halted windows, warm-up, attribution |
 | | `test_scenarios` | 7 | Synthetic cell: no alarm under wear; step on each joint < 100 ms and attributed; ramp; torque tamper; thesis mode blind; payload handover |
 | | `test_realtime` | 2 | No heap allocation while armed (and the counter works) |
-| `ids_ros` | `test_parameters`, `test_conversions` | 5 + 4 | Every setting is a parameter; message conversions are exact |
+| | `test_replay` | 6 | `.npy` round trip and rejection, column checks, calibration from a recording, quiet nominal replay, step on a4 detected and attributed (v1.4) |
+| `ids_ros` | `test_parameters`, `test_conversions`, `test_parameter_file` | 5 + 4 + 5 | Every setting is a parameter; message conversions are exact; the parameter YAML files load for `ids_replay` |
 | `iiwa_controllers` | `test_tracking_core` | 15 | State machine, payload gravity, halt/resume, clamp, deadline, tracking on a plant, no allocation, windows, tick clock |
 | | `test_encoder_model` | 4 | Quantisation, seeded noise, within the IDS's noise model |
 | | `test_ids_contract` | 2 | Controller + IDS: no false alarm; MitM on each joint detected, halted, resumed without a new alarm |
 | | `test_load_controller` | 1 | The plugin loads through `controller_manager` |
 | `iiwa_sim` | `test_friction_model` | 7 | Wear schedule; friction never stacked twice |
 | | `test_description` | 11 | The simulated robot equals the IDS's model; plugins, gripper, profiles, meshes |
-| `ids_experiments` | pytest | about 50 | Trajectories, sequencer and handover order, attacks, scenarios, IK, payload, start-up gate, shutdown |
-| `ids_bringup` | pytest | 30 | Campaign, run files, Gazebo clean-up, run monitor, campaign runner |
+| `ids_attacks` | pytest | 40 | Every attack kind, transparency outside the window, ground truth, seeded noise, input safety, the torque cover (v1.4) |
+| `ids_experiments` | pytest | about 50 | Trajectories, sequencer and handover order, scenarios (every kind, cover flag), IK, payload, start-up gate, shutdown |
+| `ids_bringup` | pytest | 36 | Campaign, sweeps, cover wiring, run files, Gazebo clean-up, run monitor, campaign runner |
+| `ids_evaluation` | pytest | 51 | Layouts, detection and false-alarm rules, export, baselines (momentum observer on a simulated arm), replay calls, reports, commands (v1.4) |
 
-## 3. Verification status of v1.2
+## 3. Verification status of v1.4
+
+| Check | Where | Result |
+|---|---|---|
+| C++ builds (`iiwa_control_law`, `ids_core`, `ids_ros`, `iiwa_controllers`) and gtests: 7, 65, 14, 21 | Sandbox | Passed, 0 warnings |
+| Python tests on pytest 7.4.4 and 9: `ids_attacks` 40, `ids_bringup` 36, `ids_evaluation` 51, `ids_experiments` 46 (ROS-free modules); flake8 | Sandbox | Passed; flake8 clean |
+| MitM node against an `rclpy` stand-in: every kind, the cover, a sweep entry | Sandbox | 13/13 scenarios passed |
+| `ids_replay`, `evaluate` and `compare_baselines` on the v1.2 recordings | Sandbox | Passed; replay limits equal the live ones |
+| IDS container: build and `colcon test` `ids_core`, `ids_ros` | User's machine | 100 tests, 0 failures |
+| Robot container: build (now including `ids_core` and `ids_ros`) and `colcon test` of 5 packages | User's machine | 227 tests, 0 failures |
+| Sweep plan (`--dry-run`) | User's machine | 28 runs planned |
+| Regression set `nominal` 600 s and `step_a4`, plus `step_a4_cover`, seed 1 | Gazebo | All complete, no saturation; results in `docs/v1.4.md` |
+| Evaluation, replay (≥ 98.9 % agreement) and baselines on those runs | User's machine | Passed |
+| Behaviour lock of the commented release | Sandbox | Only comments differ from the comment-free code (C++, Python AST, XML, YAML/JSON) |
+| Nine attack kinds, sweeps, ramp, other joints, halt chain in simulation | — | Implemented and unit-tested, **not run in simulation** |
+
+## 3a. Verification status of v1.2
 
 | Check | Where | Result |
 |---|---|---|
@@ -87,6 +106,14 @@ ros2 run ids_bringup run_campaign --only nominal step_a4 --seeds 1
 ```
 
 Pass criteria: both runs `complete` with no warnings and ≈ 0 % torque saturation; v2 raises no alarm in `nominal`; v2 alarms on a4 within 100 ms of the attack in `step_a4` with a4 as the primary joint.
+
+From v1.4 the runs are scored with the evaluation package (add `--rerun` to repeat runs that are already complete):
+
+```bash
+R=$(ls -d /ws/data/runs/*_nominal_s1 | tail -1); S=$(ls -d /ws/data/runs/*_step_a4_s1 | tail -1)
+ros2 run ids_evaluation evaluate $R $S --out /ws/data/eval
+ros2 run ids_evaluation compare_baselines $R $S --train $R --out /ws/data/compare
+```
 
 ## 5. Benchmark
 

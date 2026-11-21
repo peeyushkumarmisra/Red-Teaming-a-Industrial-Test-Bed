@@ -1,3 +1,10 @@
+# =============================================================================
+#  test_baselines.py - baseline statistics, limits and the momentum observer
+# -----------------------------------------------------------------------------
+#  The observer is checked on a simulated two-link arm: no residual without an external torque,
+#  the torque itself with one.
+# =============================================================================
+
 import math
 
 import numpy as np

@@ -1,3 +1,12 @@
+// =============================================================================
+//  closed_loop_model.hpp - predicts the arm under its own controller
+// -----------------------------------------------------------------------------
+//  Why it matters: this is the heart of the IDS. Given the trusted PLC reference, it
+//  replays the controller and the arm's physics tick by tick, so the IDS knows how the
+//  arm SHOULD move. An attacker who changes the setpoint makes the arm move
+//  differently, and that difference is what gets detected.
+// =============================================================================
+
 #pragma once
 
 #include "ids_core/config.hpp"
@@ -12,10 +21,13 @@ class ClosedLoopModel {
   ClosedLoopModel(iiwa_control_law::RobotModel& model, const ModelConfig& config,
                   InputSource source);
 
+  // Advance state x by `steps` controller ticks. Optionally returns the Jacobians
+  // F (state -> state) and G (disturbance -> state) for the Kalman filter.
   void propagate(State& x, double t0, int steps, const ReferenceTrack& track,
                  const Vec7& applied_torque, Mat21* f, Mat21x7* g,
                  const Vec7* disturbance = nullptr);
 
+  // Torque the controller should apply for this reference sample (command check).
   Vec7 nominalTorque(const Vec7& q, const Vec7& v, const iiwa_control_law::ReferenceSample& sample,
                      double t);
 

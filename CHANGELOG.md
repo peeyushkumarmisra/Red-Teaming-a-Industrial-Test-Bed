@@ -6,7 +6,47 @@ Change IDs (C01, C02, …) and problem IDs (B1, B2, …) refer to the project's 
 
 ---
 
-## [1.2.0] — 2026-11-20 · `mp-core-sim`
+## [1.4.0] — 2026-11-21 · `v1.4-ids-attacks-eval`
+
+**Harder attacks, and a proper way to score them.** Ten attack kinds, an attacker who also falsifies the robot's torque report, sweeps, an offline replay of recorded runs, an evaluation package and five baseline detectors. The IDS maths is unchanged, so v1.2 calibrations stay valid. Release notes, results and graphs: [`docs/v1.4.md`](docs/v1.4.md).
+
+> **Results are narrow:** seed 1, joint a4 only (step and covered step), 0.165 h of nominal data. Nine attack kinds and the sweeps are implemented and unit-tested, not run in simulation.
+
+### Highlights
+
+- **v2 IDS:** 0 false alarms in 600 s of wear; the 0.02 rad step on a4 detected in **44 ms**, and in **50 ms** when the attacker also falsified the torque report (physics channel only), both on a4.
+- **Baselines on the same data:** static and single-EWMA thresholds are as fast but raised a false alarm in 0.131 h of held-out wear; the momentum observer (v1's residual) misses the setpoint attack.
+
+### Added
+
+- `ids_attacks` (C19): step, ramp, sine, scaling, freeze, replay, delay, noise, coordinated and drift-mimic attacks with per-sample ground truth; `TorqueCover` (C24).
+- MitM torque-report cover: scenario flag `cover_torque`; the controller then publishes `/robot/measurement_raw`, the MitM relays a falsified `/robot/measurement` (C24).
+- Campaign: scenarios for every new kind on a4, `coordinated_a2a4`, `step_a4_cover`; `sweeps:` (`step_sweep`, `ramp_sweep`) expanded to named runs (C20).
+- `ids_core` offline replay and `.npy` I/O; `ids_replay` command in `ids_ros`, reading the node's own parameter YAML with `--set` overrides (C21).
+- `ids_evaluation` (C18, C22): `export_run`, `evaluate`, `compare_baselines`, `replay_run`, `split_legacy`; metrics, baselines, figures, Markdown/CSV reports.
+- `docs/v1.4.md` with the measured results and graphs.
+
+### Changed
+
+- `ids_experiments`: scenarios accept every kind, several joints (`joints`), `magnitudes`, `frequency`, `lag` and `cover_torque`; the MitM uses `ids_attacks`.
+- `ids_bringup`: `/robot/measurement_raw` recorded; covered runs move the controller's measurement topic behind the MitM.
+- `.gitignore`: `/data/` anchored to the repository root (B13).
+
+### Removed
+
+- `ids_experiments/attacks.py` and its test (replaced by `ids_attacks`).
+
+### Fixed during testing
+
+- Replay test limit (B1), momentum-observer integration (B2), payload mass in the baseline (B3), friction-truth columns and clock (B4), detection after the attack end counted separately (B8), training-run matching (B10), missing test URDF on the v1.2 branch (B13), code broken by hand-edited comments (B14, B15).
+
+### Known issues
+
+- B11 replay agreement 98.9–100 %; B12 commanded-torque baseline unstable; B16 two a1 alarms after the covered attack (one run); B17 shutdown warning; B24 friction lag (a4 −24.6 % at 600 s); a7 friction unobservable.
+
+---
+
+## [1.2.0] — 2026-11-20 · `v1.2-ids-core-sim`
 
 **The dissertation experiment, rebuilt so its results can be trusted.** The IDS now predicts the arm's motion from the trusted PLC reference, watches all seven joints, learns friction wear, and is calibrated once. The dissertation's design runs alongside it on the same data. Release notes, results and graphs: [`docs/v1.2.md`](docs/v1.2.md).
 

@@ -4,7 +4,7 @@ Thank you for helping. This project is a research testbed: a change is only usef
 
 ## Branches and releases
 
-- Each release lives on its own branch, started from the previous tag: `mp-core-sim` (v1.2) → `mp-attacks-eval` (v1.4) → `mp-sros2` (v1.6) → `mp-ot-network` (v1.8) → `mp-release` (v2.0, merged into `main`).
+- Each release lives on its own branch, started from the previous tag: `v1.2-ids-core-sim` (v1.2) → `v1.4-ids-attacks-eval` (v1.4) → `mp-sros2` (v1.6) → `mp-ot-network` (v1.8) → `mp-release` (v2.0, merged into `main`).
 - `v1.0.0` is the original dissertation code and is never changed.
 - Every release has a short spec, an implementation, a test phase in Gazebo (at least the regression set in `docs/TESTING.md`), and documentation. Record what changed in `CHANGELOG.md`.
 

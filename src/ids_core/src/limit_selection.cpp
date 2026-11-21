@@ -1,3 +1,13 @@
+// =============================================================================
+//  limit_selection.cpp - Monte Carlo false-alarm rate of the detector
+// -----------------------------------------------------------------------------
+//  Simulates 20 hours of white noise through the two averages and the detector rules,
+//  counts alarm episodes for limits 2.0..6.0, and interpolates the limit that meets the
+//  target rate. For budgets too small to observe, it extrapolates from the Gaussian
+//  tail (log rate is about linear in limit^2). Fixed seeds make the result
+//  repeatable, which is why the limits are identical across calibrations.
+// =============================================================================
+
 #include "ids_core/limit_selection.hpp"
 
 #include <algorithm>
@@ -25,6 +35,7 @@ std::vector<double> falseAlarmRatesPerHour(const AlarmModel& model,
   std::mt19937_64 rng(seed);
   std::normal_distribution<double> normal(0.0, 1.0);
   const auto samples = static_cast<long>(hours * 3600.0 * model.rate_hz);
+  // Let the averages settle before counting.
   const long warmup = static_cast<long>(20.0 * model.tau_slow * model.rate_hz);
   double zf = 0.0;
   double zs = 0.0;
@@ -68,6 +79,7 @@ double selectLimit(const AlarmModel& model, double target_per_hour, double hours
     limits.push_back(l);
   }
   const std::vector<double> rates = falseAlarmRatesPerHour(model, limits, hours, seed);
+  // Interpolate (in log rate) between the two limits that bracket the target.
   for (std::size_t i = 0; i + 1 < limits.size(); ++i) {
     if (rates[i] >= target_per_hour && rates[i + 1] < target_per_hour && rates[i + 1] > 0.0) {
       const double t = (std::log(rates[i]) - std::log(target_per_hour)) /
@@ -75,6 +87,7 @@ double selectLimit(const AlarmModel& model, double target_per_hour, double hours
       return limits[i] + t * (limits[i + 1] - limits[i]);
     }
   }
+  // Target below what 20 hours can show: fit log(rate) against limit^2 and extrapolate.
   double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
   int m = 0;
   for (std::size_t i = 0; i < limits.size(); ++i) {

@@ -1,3 +1,11 @@
+# =============================================================================
+#  kinematics.py - inverse kinematics for the station poses
+# -----------------------------------------------------------------------------
+#  Uses ikpy on the robot's own description. Each IK solve is seeded with the previous
+#  solution, so the arm takes the same, continuous branch every time (repeatable runs).
+#  The tool always points straight down.
+# =============================================================================
+
 import os
 import tempfile
 import warnings
@@ -9,10 +17,13 @@ JOINTS = [f'joint_a{i}' for i in range(1, 8)]
 DOWN = np.array([0.0, 0.0, -1.0])
 
 
+# Raised when a pose cannot be reached accurately: better to stop than to stream a
+# wrong program.
 class IkError(RuntimeError):
     pass
 
 
+# Forward and inverse kinematics of joint_a1..a7 from a URDF string.
 class Kinematics:
 
     def __init__(self, urdf, position_tolerance=1e-3, axis_tolerance=1e-2):
@@ -44,6 +55,7 @@ class Kinematics:
     def forward(self, q):
         return self._chain.forward_kinematics(self._full(q))
 
+    # Solve for a tool position with the tool axis pointing down; check the result.
     def inverse(self, position, seed):
         target = np.asarray(position, dtype=float)
         with warnings.catch_warnings():
@@ -61,6 +73,7 @@ class Kinematics:
                           f'tool axis error {axis_error:.4f}')
         return q
 
+    # Solve a list of targets, each seeded with the previous solution.
     def chain(self, targets, seed):
         solutions = {}
         q = np.asarray(seed, dtype=float)
@@ -70,6 +83,7 @@ class Kinematics:
         return solutions
 
 
+# Hover, grab and drop positions above one station.
 def station_targets(prefix, xy, hover_height, grab_height, drop_height):
     x, y = xy
     return [(f'{prefix}_hover', (x, y, hover_height)),

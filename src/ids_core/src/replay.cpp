@@ -1,3 +1,14 @@
+// =============================================================================
+//  replay.cpp - offline replay of recorded runs (C21)
+// -----------------------------------------------------------------------------
+//  Mirrors ids_node: every trusted reference whose stamp is not later than the
+//  measurement is added first, measurements before the first reference plus the warm-up
+//  are skipped, and each remaining measurement is one 10 ms window. Model, filter,
+//  statistics, limits and decisions are the same code as live, so a difference between
+//  live and replay can only come from message timing in the live system (a reference that
+//  arrived after its measurement).
+// =============================================================================
+
 #include "ids_core/replay.hpp"
 
 #include <cstdint>
@@ -39,6 +50,8 @@ void check(const Array2& a, std::size_t cols, const char* what) {
 
 }  // namespace
 
+// Parse the .npy header (magic string, version, then a dict with descr, fortran_order and
+// shape) and read the raw doubles.
 Array2 readNpy(const std::string& path) {
   std::ifstream f(path, std::ios::binary);
   if (!f) {
@@ -96,6 +109,7 @@ Array2 readNpy(const std::string& path) {
   return a;
 }
 
+// Write version 1.0 .npy files that numpy.load reads directly.
 void writeNpy(const std::string& path, const Array2& array) {
   std::ostringstream h;
   h << "{'descr': '<f8', 'fortran_order': False, 'shape': (" << array.rows << ", " << array.cols
@@ -164,6 +178,8 @@ ReplayResult replay(const IdsConfig& config, const std::string& urdf, const Arra
   for (std::size_t i = 0; i < measurements.rows; ++i) {
     const double* m = measurements.row(i);
     const double stamp = m[0];
+    // Feed every reference up to this measurement's stamp: the replay assumes references arrive
+    // on time.
     while (r < references.rows && references.at(r, 0) <= stamp) {
       const double* s = references.row(r);
       iiwa_control_law::ReferenceSample sample;
@@ -181,6 +197,7 @@ ReplayResult replay(const IdsConfig& config, const std::string& urdf, const Arra
       }
       ++r;
     }
+    // Same start-up rule as the node: wait for the first reference plus the warm-up.
     if (!have_reference || stamp < first_reference + options.warmup) {
       continue;
     }
@@ -217,6 +234,7 @@ ReplayResult replay(const IdsConfig& config, const std::string& urdf, const Arra
     }
     d.insert(d.end(), o.command_error.data(), o.command_error.data() + kDof);
     ++result.windows.rows;
+    // A calibrating replay stops once it has enough windows, like the live calibration mode.
     if (calibrating && stamp - first_window >= options.calibration_duration) {
       result.calibration = ids.finishCalibration();
       result.calibrated = true;

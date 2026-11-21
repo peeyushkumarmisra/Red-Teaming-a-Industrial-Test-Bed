@@ -1,3 +1,10 @@
+# =============================================================================
+#  ids_interfaces/CMakeLists.txt - generates the project's ROS messages
+# -----------------------------------------------------------------------------
+#  Turns the four .msg files into C++ and Python message types. Every other package
+#  (controller, IDS, planner, attacker, supervisor) talks through these types.
+# =============================================================================
+
 cmake_minimum_required(VERSION 3.16)
 project(ids_interfaces)
 

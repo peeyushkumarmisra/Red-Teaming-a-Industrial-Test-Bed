@@ -1,3 +1,7 @@
+# =============================================================================
+#  test_trajectory.py - smooth moves
+# =============================================================================
+
 import numpy as np
 import pytest
 
@@ -7,6 +11,7 @@ Q0 = np.array([0.0, 0.5, 0.0, -1.2, 0.0, 0.8, 0.0])
 Q1 = np.array([1.0, 0.2, -0.5, -1.8, 0.3, 0.5, 0.0])
 
 
+# No jump in speed at the start or end of a move.
 def test_quintic_starts_and_ends_at_rest():
     p, v, a = quintic(Q0, Q1, 2.0, 0.0)
     np.testing.assert_allclose(p, Q0)
@@ -18,6 +23,7 @@ def test_quintic_starts_and_ends_at_rest():
     np.testing.assert_allclose(a, 0.0)
 
 
+# Reported velocity and acceleration are consistent.
 def test_quintic_velocity_and_acceleration_are_derivatives_of_position():
     h = 1e-6
     for t in (0.3, 1.0, 1.7):
@@ -34,6 +40,7 @@ def test_quintic_midpoint_is_half_way():
     np.testing.assert_allclose(a, 0.0, atol=1e-12)
 
 
+# Moves never exceed the joint limits.
 def test_move_duration_respects_velocity_and_acceleration_limits():
     vmax = np.full(7, 0.5)
     amax = np.full(7, 1.0)

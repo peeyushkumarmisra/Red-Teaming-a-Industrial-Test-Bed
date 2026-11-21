@@ -1,3 +1,9 @@
+# =============================================================================
+#  setup.py - Python package, launch files, configs and two executables
+# -----------------------------------------------------------------------------
+#  run_supervisor (ends and summarises one run) and run_campaign (runs many).
+# =============================================================================
+
 from glob import glob
 
 from setuptools import find_packages, setup

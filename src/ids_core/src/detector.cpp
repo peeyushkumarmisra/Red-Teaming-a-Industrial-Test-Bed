@@ -1,3 +1,10 @@
+// =============================================================================
+//  detector.cpp - debounce, hysteresis and latch
+// -----------------------------------------------------------------------------
+//  The same rules are simulated in limit_selection.cpp to choose the limits, so the
+//  false-alarm budget holds for exactly this logic.
+// =============================================================================
+
 #include "ids_core/detector.hpp"
 
 namespace ids_core {
@@ -11,6 +18,7 @@ void ChannelBank::reset() {
 void ChannelBank::step(const Vec7& statistic, double limit, int debounce, int clear_count,
                        double hysteresis) {
   for (int i = 0; i < kDof; ++i) {
+    // Not alarming: count windows in a row above the limit; alarm after `debounce`.
     if (!active_(i)) {
       over_(i) = statistic(i) > limit ? over_(i) + 1 : 0;
       if (over_(i) >= debounce) {
@@ -18,6 +26,7 @@ void ChannelBank::step(const Vec7& statistic, double limit, int debounce, int cl
         under_(i) = 0;
       }
     } else {
+      // Alarming: count windows in a row below hysteresis * limit; clear after `clear_count`.
       under_(i) = statistic(i) < hysteresis * limit ? under_(i) + 1 : 0;
       if (under_(i) >= clear_count) {
         active_(i) = false;
@@ -60,6 +69,7 @@ const DetectorOutput& Detector::update(const Vec7& physics, const Vec7& physics_
   out_.physics_slow = slow_.active();
   out_.command = command_.active();
   out_.alarm = out_.physics.any() || out_.physics_slow.any() || out_.command.any();
+  // Onset: first window of a new alarm (used for rollback and attribution).
   out_.onset = out_.alarm && !previous;
   if (out_.alarm) {
     out_.latched = config_.latch;

@@ -1,9 +1,9 @@
-# ==================================================================================================
+# =============================================================================
 #  bridge.yaml - topics bridged between Gazebo and ROS 2
-# --------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #  /clock (simulation time for every ROS node), the gripper commands and state, and the
 #  friction ground truth. Joint states and torques go through gz_ros2_control instead.
-# ==================================================================================================
+# =============================================================================
 
 # Simulation time: every node runs with use_sim_time.
 - ros_topic_name: /clock
@@ -31,8 +31,9 @@
   ros_type_name: std_msgs/msg/String
   gz_type_name: gz.msgs.StringMsg
   direction: GZ_TO_ROS
-# Wear ground truth: 7 coefficients, then 7 applied torques (no header: time it by the bag's receive stamp, 
-# which is sim time).
+
+# Wear ground truth: 7 coefficients, then 7 applied torques (no header: time
+# it by the bag's receive stamp, which is sim time).
 - ros_topic_name: /sim/friction_truth
   gz_topic_name: /sim/friction_truth
   ros_type_name: ros_gz_interfaces/msg/Float32Array

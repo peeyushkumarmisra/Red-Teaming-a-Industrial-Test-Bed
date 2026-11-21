@@ -1,3 +1,11 @@
+// =============================================================================
+//  limit_selection.hpp - choose alarm limits from a false-alarm budget
+// -----------------------------------------------------------------------------
+//  Instead of a hand-tuned threshold, the limit is the value that gives the target
+//  number of false alarms per hour on pure noise, for this exact detector (time
+//  constants, debounce, hysteresis).
+// =============================================================================
+
 #pragma once
 
 #include <cstdint>

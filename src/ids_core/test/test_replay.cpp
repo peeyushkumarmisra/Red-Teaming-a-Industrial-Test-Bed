@@ -1,3 +1,12 @@
+// =============================================================================
+//  test_replay.cpp - offline replay on synthetic recordings
+// -----------------------------------------------------------------------------
+//  Records runs from the synthetic cell, then checks: .npy round trip and rejection of
+//  other formats, wrong column counts, a calibration from a recording carries the live
+//  fingerprint, an armed replay of nominal data raises no alarm, and a 0.02 rad setpoint
+//  step on a4 is detected within 0.1 s with a4 as the primary joint.
+// =============================================================================
+
 #include <gtest/gtest.h>
 
 #include <cmath>

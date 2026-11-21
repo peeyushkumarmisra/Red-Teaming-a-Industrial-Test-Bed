@@ -1,3 +1,7 @@
+# =============================================================================
+#  test_campaign.py - the installed campaign is complete and valid
+# =============================================================================
+
 import copy
 import os
 
@@ -33,6 +37,7 @@ def campaign():
     return load_campaign(CAMPAIGN)
 
 
+# 45 runs in the documented order.
 def test_installed_campaign_runs_nominal_then_every_joint_for_step_and_ramp(campaign):
     expected = ['nominal'] + [f'step_a{j}' for j in range(1, 8)] + \
         [f'ramp_a{j}' for j in range(1, 8)]
@@ -42,6 +47,7 @@ def test_installed_campaign_runs_nominal_then_every_joint_for_step_and_ramp(camp
     assert runs[:4] == [('nominal', 1), ('nominal', 2), ('nominal', 3), ('step_a1', 1)]
 
 
+# Every run passes the MitM's own validation.
 def test_every_scenario_and_seed_is_a_valid_mitm_scenario(campaign):
     for name, entry in campaign.entries.items():
         for seed in entry['seeds']:
@@ -49,6 +55,7 @@ def test_every_scenario_and_seed_is_a_valid_mitm_scenario(campaign):
             assert s.name == name and s.seed == seed
 
 
+# Attacks start after wear has begun.
 def test_family_members_attack_their_own_joint_during_drift(campaign):
     wear_delay = sibling_config('iiwa_sim', 'friction.yaml')['wear']['delay']
     for kind in ('step', 'ramp'):
@@ -107,6 +114,7 @@ def test_invalid_campaigns_are_rejected_with_the_offending_name(change, message)
         parse_campaign(data)
 
 
+# Every attack kind, the cover and the sweeps are available by name.
 def test_installed_campaign_offers_every_attack_kind_cover_and_sweeps(campaign):
     kinds = {}
     for name in campaign.entries:
@@ -124,6 +132,7 @@ def test_installed_campaign_offers_every_attack_kind_cover_and_sweeps(campaign):
                    for n in campaign.order)
 
 
+# 28 step-sweep runs, each a valid MitM scenario.
 def test_sweeps_expand_joints_times_magnitudes_and_can_be_planned():
     data = copy.deepcopy(SMALL)
     data['sweeps'] = {'probe': {'duration': 40.0, 'joints': [3, 6], 'magnitudes': [0.01, 0.02],

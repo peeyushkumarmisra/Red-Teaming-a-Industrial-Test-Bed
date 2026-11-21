@@ -1,3 +1,12 @@
+// =============================================================================
+//  friction_model.hpp - wear schedule and torque composition
+// -----------------------------------------------------------------------------
+//  FrictionSchedule: the coefficient of each joint over time (see friction.yaml).
+//  ForceComposer: adds the friction torque to the torque the controller wrote,
+//  without ever adding it twice when the command is not rewritten.
+//  Kept free of Gazebo so both are unit-tested.
+// =============================================================================
+
 #pragma once
 
 #include <algorithm>
@@ -23,6 +32,7 @@ class FrictionSchedule {
   double delay() const { return delay_; }
   const FrictionChannel& channel(std::size_t i) const { return channels_[i]; }
 
+  // Linear growth after the delay, capped; never below the initial value.
   double coefficient(std::size_t i, double t) const {
     const FrictionChannel& c = channels_[i];
     const double grown = c.initial + c.rate * std::max(0.0, t - delay_);
@@ -34,6 +44,8 @@ class FrictionSchedule {
   std::vector<FrictionChannel> channels_;
 };
 
+// If the controller rewrote the command this step, add friction to it; if the command
+// is our own previous value, replace our old friction term instead of stacking it.
 class ForceComposer {
  public:
   double compose(double current_command, double friction_torque) {

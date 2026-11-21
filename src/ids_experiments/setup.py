@@ -1,3 +1,9 @@
+# =============================================================================
+#  setup.py - Python package and its two ROS executables
+# -----------------------------------------------------------------------------
+#  plc_planner (the trusted PLC) and mitm (the attacker), installed for `ros2 run`.
+# =============================================================================
+
 from setuptools import find_packages, setup
 
 package_name = 'ids_experiments'

@@ -1,3 +1,11 @@
+# =============================================================================
+#  test_cover.py - the cover hides the attack's torque exactly
+# -----------------------------------------------------------------------------
+#  A model of the controller computes the torque for the falsified and the trusted
+#  setpoint; after the cover the report must equal the trusted one for step, ramp and
+#  sine at several delays. Clean samples pass unchanged; the history stays bounded.
+# =============================================================================
+
 import numpy as np
 import pytest
 

@@ -1,3 +1,7 @@
+# =============================================================================
+#  test_shutdown.py - clean shutdown without hiding real errors (B22)
+# =============================================================================
+
 import pytest
 
 from ids_experiments import shutdown

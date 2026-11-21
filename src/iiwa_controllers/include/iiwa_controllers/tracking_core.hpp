@@ -1,3 +1,13 @@
+// =============================================================================
+//  tracking_core.hpp - controller logic without ROS
+// -----------------------------------------------------------------------------
+//  States: waiting (hold) -> resuming (blend in) -> tracking; halted on an IDS alarm
+//  (only if enabled) or starved when references stop; both hold the measured position
+//  and resume with a blend.
+//  Also here: the decimator that turns 10 controller ticks into one IDS window, and
+//  the tick clock that gives exact 1 ms steps in simulation (B19).
+// =============================================================================
+
 #pragma once
 
 #include <cstdint>
@@ -9,17 +19,24 @@ namespace iiwa_controllers {
 
 using iiwa_control_law::Vec7;
 
+// Gains and payload must match the IDS's settings (same defaults).
 struct TrackingConfig {
   iiwa_control_law::Gains gains = iiwa_control_law::Gains::iiwaDefault();
   iiwa_control_law::Payload nominal_payload = iiwa_control_law::defaultPayload();
   double reference_hold = 0.05;
+  // No new reference for 0.5 s: stop and hold (starved).
   double reference_timeout = 0.5;
+  // Blend from the hold position back onto the reference over 0.5 s.
   double resume_time = 0.5;
   double nominal_period = 0.001;
+  // A period over 2.5 ms counts as a missed deadline.
   double overrun_factor = 2.5;
+  // Safety reaction to the IDS. Off in the v1.2 runs (the halt chain is tested in
+  // unit tests and planned for simulation in v1.6).
   bool halt_on_alarm = false;
 };
 
+// Controller modes; anything other than tracking is reported as halted to the IDS.
 enum class TrackingState { kWaiting, kTracking, kHalted, kStarved, kResuming };
 
 struct TrackingOutput {
@@ -29,6 +46,8 @@ struct TrackingOutput {
   std::uint64_t reference_seq = 0;
 };
 
+// Publishes every Nth tick. A window is marked halted if ANY tick in it was not
+// tracking, so the IDS never predicts tracking for a window that held or blended (B6).
 class MeasurementDecimator {
  public:
   explicit MeasurementDecimator(int every) : every_(every > 0 ? every : 1) {}
@@ -61,6 +80,9 @@ class MeasurementDecimator {
   bool first_ = true;
 };
 
+// Simulation clock for the controller: anchor on the first update, then advance
+// exactly one period per update. Measurement stamps become exact 10 ms windows that
+// the IDS can replay tick for tick (B19).
 class TickClock {
  public:
   explicit TickClock(std::int64_t period_ns = 1000000)
@@ -86,6 +108,7 @@ class TickClock {
   bool started_ = false;
 };
 
+// The controller's decision logic and torque computation.
 class TrackingCore {
  public:
   TrackingCore(iiwa_control_law::RobotModel& model, const TrackingConfig& config);

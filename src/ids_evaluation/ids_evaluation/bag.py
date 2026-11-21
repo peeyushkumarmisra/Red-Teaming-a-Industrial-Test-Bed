@@ -1,3 +1,15 @@
+# =============================================================================
+#  bag.py - export a run's bag to arrays
+# -----------------------------------------------------------------------------
+#  Reads the MCAP bag of one run folder with rosbag2_py and writes the arrays the
+#  evaluation needs into export.npz (cached in the run folder): measurements (and the
+#  raw ones of a covered run), trusted references, gripper commands, attack truth
+#  changes, friction truth, both IDS status streams, the calibration limits, and the
+#  run's summary and scenario. Also reads the multi-run exports made for v1.2.
+#  ROS modules are imported inside the functions, so the rest of the package (and its
+#  tests) works without ROS.
+# =============================================================================
+
 import json
 import math
 import os
@@ -7,6 +19,7 @@ import yaml
 
 from ids_evaluation import layout
 
+# Everything recorded for evaluation (see ids_bringup runs.py).
 TOPICS = ('/robot/measurement', '/robot/measurement_raw', '/plc/reference', '/gripper/attach',
           '/gripper/detach', '/attack/truth', '/sim/friction_truth', '/ids/status',
           '/ids_thesis/status')
@@ -24,6 +37,7 @@ def _yaml(path):
         return yaml.safe_load(f)
 
 
+# Limits from the calibration files the live IDS used; NaN if the files are missing.
 def read_limits(calibration_dir):
     limits = {}
     for name, filename in CALIBRATION_FILES:
@@ -33,6 +47,8 @@ def read_limits(calibration_dir):
     return limits
 
 
+# Times are the message stamps (sim time); gripper commands carry no stamp, so their bag
+# receive time is used.
 def read_bag(bag_dir, end=math.inf):
     import rosbag2_py
     from rclpy.serialization import deserialize_message
@@ -73,6 +89,8 @@ def read_bag(bag_dir, end=math.inf):
             rows['reference'].append([t, msg.seq, msg.payload_context, msg.payload_mass,
                                       *msg.position, *msg.velocity, *msg.acceleration])
         elif topic == '/attack/truth':
+            # Keep only the samples where the attack truth changes: start and end of each
+            # event.
             key = (bool(msg.attack_active), int(msg.event_id))
             if key != last_truth:
                 last_truth = key
@@ -97,6 +115,8 @@ def read_bag(bag_dir, end=math.inf):
     return out
 
 
+# Time zero of every evaluation is the first trusted reference (summary.yaml), as for the
+# attacks.
 def export_run(run_dir, limit=None, calibration_dir=None):
     summary = _yaml(os.path.join(run_dir, 'summary.yaml'))
     if not summary or summary.get('first_reference') is None:
@@ -117,6 +137,7 @@ def save_export(path, export):
     np.savez_compressed(path, **export)
 
 
+# v1.2 exports kept only (t, active); rebuild kind, joints and magnitude from the scenario.
 def _legacy_attack(attack, scenario, start):
     rows = []
     attacks = sorted((scenario or {}).get('attacks') or [], key=lambda a: a.get('start', 0.0))
@@ -142,6 +163,7 @@ def load_export(path):
     return normalise(out)
 
 
+# Bring any export to the current layout.
 def normalise(export):
     out = dict(export)
     for name in layout.INSTANCES:

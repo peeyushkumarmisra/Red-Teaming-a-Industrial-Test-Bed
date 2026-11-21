@@ -1,15 +1,39 @@
+# =============================================================================
+#  library.py - the ten attack kinds and their ground truth (C19)
+# -----------------------------------------------------------------------------
+#  Effect on the forwarded setpoint of each attacked joint, t = time since the
+#  attack started, m = magnitude:
+#    step         q += m
+#    ramp         q += m*t,  v += m                 (m in rad/s)
+#    sine         q += m*sin(2*pi*f*t), v += its derivative
+#    scaling      q = q0 + m*(q - q0), v = m*v       (q0 = position at the start)
+#    freeze       hold the sample from the attack start (v = 0)
+#    replay       loop the samples of the `lag` seconds before the attack
+#    delay        forward the sample from `lag` seconds earlier
+#    noise        q += normal(0, m), seeded by scenario seed and event id
+#    coordinated  q += m_i on two or more joints (per-joint magnitudes)
+#    drift_mimic  q -= c(t)*v, c(t) = m*min(t/duration, 1): looks like growing
+#                 viscous friction, the slow change the IDS is built to tolerate
+#  Why it matters: the IDS must be tested against attacks shaped to look like normal
+#  behaviour (freeze, replay, delay, drift_mimic), not only against obvious steps.
+#  Times are seconds after the first trusted reference; at most one attack is active.
+# =============================================================================
+
 from collections import deque
 from dataclasses import dataclass
 import math
 
 import numpy as np
 
+# Every kind the scenario format accepts.
 KINDS = ('step', 'ramp', 'sine', 'scaling', 'freeze', 'replay', 'delay', 'noise', 'coordinated',
          'drift_mimic')
+# Kinds that need a history of past samples.
 LAGGED = ('replay', 'delay')
 DOF = 7
 
 
+# One attack event; joints are 0-based (0 = a1).
 @dataclass(frozen=True)
 class Attack:
     event_id: int
@@ -36,6 +60,8 @@ class Attack:
         return (self.magnitude,) * len(self.joints)
 
 
+# Ground truth for one forwarded sample, published on /attack/truth and used only to score the
+# IDS.
 @dataclass(frozen=True)
 class Truth:
     attack_active: bool
@@ -54,6 +80,8 @@ def _finite(value, what):
     return float(value)
 
 
+# Build and validate one attack: unknown kinds, joints outside a1..a7, missing or non-finite
+# magnitudes and missing lags are rejected.
 def make_attack(event_id, kind, joints, magnitude=None, start=0.0, duration=0.0, frequency=0.0,
                 lag=0.0, magnitudes=(), seed=0):
     if kind not in KINDS:
@@ -95,6 +123,7 @@ def make_attack(event_id, kind, joints, magnitude=None, start=0.0, duration=0.0,
                   int(seed))
 
 
+# All attacks of a scenario, sorted by start time.
 class AttackSchedule:
 
     def __init__(self, attacks=()):
@@ -114,6 +143,8 @@ class AttackSchedule:
                 return attack
         return None
 
+    # Return the (possibly falsified) position, velocity and acceleration plus the truth. The
+    # inputs are never modified.
     def apply(self, t, position, velocity, acceleration=None):
         q = np.array(position, dtype=float)
         v = np.array(velocity, dtype=float)
@@ -135,6 +166,8 @@ class AttackSchedule:
         mask = tuple(i in attack.joints for i in range(DOF))
         return q2, v2, a2, Truth(True, attack.kind, mask, attack.magnitude, attack.event_id)
 
+    # State taken when an attack begins: the start sample, the replay window and the seeded
+    # noise generator.
     def _start(self, attack, q, v, a):
         state = {'q0': q.copy(), 'v0': v.copy(), 'a0': a.copy()}
         if attack.kind == 'replay':
@@ -147,6 +180,7 @@ class AttackSchedule:
             state['rng'] = np.random.default_rng([attack.seed, attack.event_id])
         return state
 
+    # The recorded sample closest to time t (for replay and delay).
     def _lagged(self, t):
         target = None
         for sample in self._history:
@@ -156,6 +190,7 @@ class AttackSchedule:
                 break
         return target if target is not None else self._history[0]
 
+    # The formulas of the table above, for one joint.
     def _effect(self, attack, state, j, m, t, tau, q, v, a, q2, v2, a2):
         kind = attack.kind
         if kind in ('step', 'coordinated'):

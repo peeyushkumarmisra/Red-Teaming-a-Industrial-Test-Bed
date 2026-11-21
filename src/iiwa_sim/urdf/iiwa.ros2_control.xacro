@@ -1,4 +1,13 @@
 <?xml version="1.0"?>
+<!--
+  =============================================================================
+   iiwa.ros2_control.xacro - hardware interface for gz_ros2_control
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Each joint: effort command (the controller sends torque), position, velocity and
+   effort state. The initial position puts the arm at its home pose at spawn.
+  =============================================================================
+-->
+
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <xacro:macro name="iiwa_r2c_joint" params="name initial">

@@ -1,5 +1,16 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   ids_attacks - the attack library (v1.4)
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Ten setpoint attack kinds with per-sample ground truth, plus the falsified torque
+   report (cover). Plain Python with no ROS, so the same attacks can be used by the
+   MitM node today and by other transports later (Modbus proxy, PLC update) without
+   being rewritten.
+  =============================================================================
+-->
+
 <package format="3">
   <name>ids_attacks</name>
   <version>1.4.0</version>

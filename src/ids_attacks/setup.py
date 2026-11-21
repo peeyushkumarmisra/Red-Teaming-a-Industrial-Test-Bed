@@ -1,3 +1,9 @@
+# =============================================================================
+#  setup.py - Python package with no executables
+# -----------------------------------------------------------------------------
+#  A library only: ids_experiments' MitM node imports it.
+# =============================================================================
+
 from setuptools import find_packages, setup
 
 package_name = 'ids_attacks'

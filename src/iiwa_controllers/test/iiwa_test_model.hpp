@@ -1,3 +1,10 @@
+// =============================================================================
+//  iiwa_test_model.hpp - an iiwa model for controller tests
+// -----------------------------------------------------------------------------
+//  A URDF of the KUKA iiwa 14 embedded in the test, so the controller tests run without
+//  any installed robot description.
+// =============================================================================
+
 #pragma once
 
 #include <array>

@@ -1,3 +1,7 @@
+# =============================================================================
+#  test_runs.py - run folders, bag topics and Gazebo clean-up
+# =============================================================================
+
 from datetime import datetime
 import os
 
@@ -74,6 +78,7 @@ def test_completed_run_needs_a_complete_summary_for_the_exact_scenario_and_seed(
     assert completed_run(root, 'step_a1', 2) is None
 
 
+# Nothing the evaluation needs is left out of the bag.
 def test_bag_records_the_streams_the_evaluation_needs():
     for topic in ('/plc/reference', '/robot/reference', '/robot/measurement', '/attack/truth',
                   '/ids/status', '/ids_thesis/status', '/sim/friction_truth'):
@@ -82,6 +87,7 @@ def test_bag_records_the_streams_the_evaluation_needs():
     assert '/robot/measurement_raw' in BAG_TOPICS
 
 
+# C24 wiring: the controller of a covered run publishes on the raw topic.
 def test_covered_runs_move_the_controller_measurements_behind_the_mitm(tmp_path, template):
     files = prepare_run(str(tmp_path / 'runs'), dict(SCENARIO, cover_torque=True), template,
                         False, NOW)
@@ -102,6 +108,7 @@ def fake_proc(root, processes):
     os.makedirs(os.path.join(root, 'self'))
 
 
+# Only Gazebo servers are stopped, never other processes (B20).
 def test_gazebo_processes_finds_gz_sim_servers_only(tmp_path):
     root = str(tmp_path)
     fake_proc(root, {

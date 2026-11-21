@@ -1,3 +1,15 @@
+// =============================================================================
+//  replay_main.cpp - the ids_replay command (C21)
+// -----------------------------------------------------------------------------
+//  ids_replay --urdf ROBOT.urdf --params ids.yaml --reference REF.npy
+//             --measurement MEAS.npy --output OUT.npy
+//             (--calibrate CAL.yaml [--duration S] | --calibration CAL.yaml)
+//             [--warmup S] [--set name=value ...]
+//  Calibrate: replay a nominal recording and save a calibration file. Arm: replay any
+//  recording with a calibration and write the IDS decision for every window. ids_evaluation
+//  calls it for the replay baselines; it can also be run by hand.
+// =============================================================================
+
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -54,10 +66,12 @@ int run(int argc, char** argv) {
       return 2;
     }
   }
+  // Exactly one mode: make a calibration or use one.
   if (opt.count("calibrate") == opt.count("calibration")) {
     std::fprintf(stderr, "give exactly one of --calibrate and --calibration\n%s", kUsage);
     return 2;
   }
+  // Same parameter file as the node, then the --set overrides.
   ids_ros::ParameterMap params = ids_ros::parametersFromFile(opt["params"]);
   for (const auto& s : sets) {
     const auto [name, value] = ids_ros::parseOverride(s);

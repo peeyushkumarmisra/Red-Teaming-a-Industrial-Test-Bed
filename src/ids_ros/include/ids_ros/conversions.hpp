@@ -1,3 +1,10 @@
+// =============================================================================
+//  conversions.hpp - ROS messages <-> ids_core types
+// -----------------------------------------------------------------------------
+//  Templates over the message types, so the tests can check the conversions with
+//  plain structs that have the same layout, without ROS installed.
+// =============================================================================
+
 #pragma once
 
 #include <cstddef>
@@ -32,6 +39,7 @@ void fromMask7(const ids_core::Mask7& m, Array& a) {
 }
 
 template <class ReferenceMsg>
+// JointReference message -> reference sample (stamp in sim seconds).
 iiwa_control_law::ReferenceSample toReferenceSample(const ReferenceMsg& msg, double stamp) {
   iiwa_control_law::ReferenceSample s;
   s.stamp = stamp;
@@ -45,6 +53,7 @@ iiwa_control_law::ReferenceSample toReferenceSample(const ReferenceMsg& msg, dou
 }
 
 template <class MeasurementMsg>
+// JointMeasurement message -> one IDS window.
 ids_core::Measurement toMeasurement(const MeasurementMsg& msg, double stamp) {
   ids_core::Measurement m;
   m.stamp = stamp;
@@ -57,6 +66,7 @@ ids_core::Measurement toMeasurement(const MeasurementMsg& msg, double stamp) {
 }
 
 template <class StatusMsg>
+// IDS decision -> IdsStatus message.
 void fillStatus(const ids_core::IdsOutput& out, double step_time_us, StatusMsg& msg) {
   msg.mode = static_cast<std::uint8_t>(out.mode);
   msg.alarm = out.alarm;

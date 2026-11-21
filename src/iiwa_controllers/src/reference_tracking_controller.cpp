@@ -1,3 +1,14 @@
+// =============================================================================
+//  reference_tracking_controller.cpp - ros2_control plugin implementation
+// -----------------------------------------------------------------------------
+//  on_init: declare parameters (defaults equal the IDS's). on_configure: build the
+//  gravity model from /robot_description and check joint names. on_activate: claim the
+//  interfaces. update (1 kHz): read joints -> encoder model -> tracking core -> write
+//  torques -> every 10th tick publish a measurement for the IDS.
+//  Hardware interface access uses the current Jazzy API (get_optional / checked
+//  set_value, B12): a failed read skips the cycle and is reported, never ignored.
+// =============================================================================
+
 #include "iiwa_controllers/reference_tracking_controller.hpp"
 
 #include <cmath>
@@ -28,6 +39,7 @@ bool toVec7(const std::vector<double>& l, Vec7& out) {
 
 }  // namespace
 
+// Parameters and their defaults (see docs/CONFIGURATION.md).
 controller_interface::CallbackReturn ReferenceTrackingController::on_init() {
   try {
     const TrackingConfig d;
@@ -50,10 +62,13 @@ controller_interface::CallbackReturn ReferenceTrackingController::on_init() {
     auto_declare<double>("reference_timeout", d.reference_timeout);
     auto_declare<double>("resume_time", d.resume_time);
     auto_declare<bool>("halt_on_alarm", d.halt_on_alarm);
+    // true in simulation: count ticks instead of reading the late /clock (B19).
     auto_declare<bool>("tick_clock", false);
     auto_declare<int>("encoder_bits", e.position_bits);
     auto_declare<double>("velocity_noise", e.velocity_noise);
+    // Set per run by the experiment launch, so seeds 1, 2, 3 give different sensor noise.
     auto_declare<int>("noise_seed", static_cast<int>(e.seed));
+    // One measurement every 10 ticks = one IDS window every 10 ms.
     auto_declare<int>("measurement_decimation", 10);
     auto_declare<std::string>("reference_topic", "/robot/reference");
     auto_declare<std::string>("measurement_topic", "/robot/measurement");
@@ -66,6 +81,7 @@ controller_interface::CallbackReturn ReferenceTrackingController::on_init() {
 }
 
 controller_interface::InterfaceConfiguration
+// Effort (torque) command for each joint.
 ReferenceTrackingController::command_interface_configuration() const {
   controller_interface::InterfaceConfiguration c;
   c.type = controller_interface::interface_configuration_type::INDIVIDUAL;
@@ -76,6 +92,7 @@ ReferenceTrackingController::command_interface_configuration() const {
 }
 
 controller_interface::InterfaceConfiguration
+// Position and velocity of each joint.
 ReferenceTrackingController::state_interface_configuration() const {
   controller_interface::InterfaceConfiguration c;
   c.type = controller_interface::interface_configuration_type::INDIVIDUAL;
@@ -88,6 +105,7 @@ ReferenceTrackingController::state_interface_configuration() const {
   return c;
 }
 
+// Check parameters, build the gravity model and the ROS connections.
 controller_interface::CallbackReturn ReferenceTrackingController::on_configure(
     const rclcpp_lifecycle::State&) {
   auto node = get_node();
@@ -152,9 +170,11 @@ controller_interface::CallbackReturn ReferenceTrackingController::on_configure(
 
   reference_buffer_.writeFromNonRT(nullptr);
   const auto stream = rclcpp::QoS(100).reliable();
+  // Reference from the network (may have been changed by the MitM).
   reference_sub_ = node->create_subscription<Reference>(
       node->get_parameter("reference_topic").as_string(), stream,
       [this](const std::shared_ptr<Reference> msg) { reference_buffer_.writeFromNonRT(msg); });
+  // IDS alarm (latched, transient-local) for the optional halt.
   alarm_sub_ = node->create_subscription<std_msgs::msg::Bool>(
       node->get_parameter("alarm_topic").as_string(), rclcpp::QoS(1).reliable().transient_local(),
       [this](const std::shared_ptr<std_msgs::msg::Bool> msg) {
@@ -173,6 +193,7 @@ controller_interface::CallbackReturn ReferenceTrackingController::on_configure(
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
+// Claim the interfaces and start a fresh timeline.
 controller_interface::CallbackReturn ReferenceTrackingController::on_activate(
     const rclcpp_lifecycle::State&) {
   position_states_.clear();
@@ -202,6 +223,7 @@ controller_interface::CallbackReturn ReferenceTrackingController::on_activate(
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
+// Leave zero torque behind when the controller stops.
 controller_interface::CallbackReturn ReferenceTrackingController::on_deactivate(
     const rclcpp_lifecycle::State&) {
   for (auto& c : effort_commands_) {
@@ -212,10 +234,12 @@ controller_interface::CallbackReturn ReferenceTrackingController::on_deactivate(
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
+// One control tick (1 ms).
 controller_interface::return_type ReferenceTrackingController::update(
     const rclcpp::Time& time, const rclcpp::Duration& period) {
   rclcpp::Time now = time;
   rclcpp::Duration elapsed = period;
+  // Simulation: time = first update + n * 1 ms, exactly as Gazebo stepped (B19).
   if (use_tick_clock_) {
     now = rclcpp::Time(tick_clock_.next(time.nanoseconds()), time.get_clock_type());
     elapsed = rclcpp::Duration::from_nanoseconds(tick_clock_.period_ns());
@@ -238,6 +262,7 @@ controller_interface::return_type ReferenceTrackingController::update(
   } else {
     ++io_failures_;
   }
+  // Report missed deadlines and I/O failures, throttled to one line per 5 s.
   if (core_->overruns() != reported_overruns_) {
     reported_overruns_ = core_->overruns();
     RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 5000,
@@ -252,12 +277,15 @@ controller_interface::return_type ReferenceTrackingController::update(
   return controller_interface::return_type::OK;
 }
 
+// Sense, decide, actuate, and publish the measurement window.
 void ReferenceTrackingController::step(const rclcpp::Time& time, const rclcpp::Duration& period,
                                        const Vec7& q, const Vec7& v) {
   Vec7 qm;
   Vec7 vm;
+  // The controller (and the IDS) only ever see the encoder's view of the arm.
   encoder_->sense(q, v, qm, vm);
   const std::shared_ptr<Reference> ref = *reference_buffer_.readFromRT();
+  // A new reference sample arrived: hand it to the tracking core.
   if (ref && (!have_seq_ || ref->seq != last_seq_)) {
     iiwa_control_law::ReferenceSample s;
     s.stamp = rclcpp::Time(ref->header.stamp).seconds();
@@ -285,11 +313,13 @@ void ReferenceTrackingController::step(const rclcpp::Time& time, const rclcpp::D
     ++io_failures_;
   }
   bool window_halted = out.halted;
+  // Every 10th tick close the IDS window; a busy publisher defers the halt flag.
   const bool publish = decimator_.tick(out.halted, window_halted);
   if (publish && !measurement_rt_->trylock()) {
     decimator_.defer(window_halted);
   } else if (publish) {
     Measurement& m = measurement_rt_->msg_;
+    // Stamp = this tick's time: the IDS replays the window up to exactly here.
     m.header.stamp = time;
     for (int i = 0; i < iiwa_control_law::kDof; ++i) {
       const auto k = static_cast<std::size_t>(i);

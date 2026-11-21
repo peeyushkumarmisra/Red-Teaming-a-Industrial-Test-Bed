@@ -1,10 +1,11 @@
-# ==================================================================================================
-# monitor.py - this monitors runs
-# --------------------------------------------------------------------------------------------------
-# ROS-free bookkeeping for the run supervisor: run time from the first reference, status counts per
-# IDS instance, first alarm, and torque saturation. A run with the arm at its torque limits in more
-# than 1 % of windows is flagged as not nominal and must be excluded from evaluation (B21).
-# ==================================================================================================
+# =============================================================================
+#  monitor.py - is this run healthy, and what did the IDS do?
+# -----------------------------------------------------------------------------
+#  ROS-free bookkeeping for the run supervisor: run time from the first reference,
+#  status counts per IDS instance, first alarm, and torque saturation. A run with the
+#  arm at its torque limits in more than 1 % of windows is flagged as not nominal and
+#  must be excluded from evaluation (B21).
+# =============================================================================
 
 MODES = {0: 'waiting', 1: 'calibrating', 2: 'armed', 3: 'fault'}
 # Torque limits of the iiwa 14 (N*m), same as the controller's.
@@ -86,4 +87,23 @@ class RunMonitor:
                        'measurement windows: the arm is not tracking (blocked, at a joint limit '
                        'or in contact), so this run is not nominal')
         for ns, s in self.ids.items():
-            if s['status_messages']
+            if s['status_messages'] == 0:
+                out.append(f'no /{ns}/status received: is the IDS running on the monitor network?')
+            elif s['modes'].get('fault'):
+                out.append(f'/{ns} reported FAULT: missing calibration or fingerprint mismatch')
+        return out
+
+    # Contents of summary.yaml.
+    def summary(self, status):
+        return {
+            'status': status,
+            'duration': self.duration,
+            'elapsed': round(self.elapsed, 3),
+            'first_reference': self.first_reference,
+            'references': self.references,
+            'measurements': self.measurements,
+            'torque_saturation': (None if self.torque_saturation is None
+                                  else round(self.torque_saturation, 4)),
+            'ids': self.ids,
+            'warnings': self.warnings(),
+        }

@@ -1,3 +1,9 @@
+// =============================================================================
+//  test_parameters.cpp - parameters reach the IDS configuration
+// -----------------------------------------------------------------------------
+//  No setting can be missing, mistyped or silently ignored.
+// =============================================================================
+
 #include <gtest/gtest.h>
 
 #include <stdexcept>
@@ -20,10 +26,12 @@ std::string fingerprint(const IdsConfig& c) { return ids_core::configSignature(c
 
 }  // namespace
 
+// One parameter per IdsConfig field: 39 in v1.2 (update when adding a field).
 TEST(Parameters, EveryConfigurationFieldHasOneParameter) {
   EXPECT_EQ(defaultParameters().size(), 39u);
 }
 
+// Declared defaults give back the default configuration.
 TEST(Parameters, DefaultsRoundTripToTheDefaultConfiguration) {
   const IdsConfig d;
   const IdsConfig c = configFromParameters(defaultParameters());
@@ -41,6 +49,7 @@ TEST(Parameters, DefaultsRoundTripToTheDefaultConfiguration) {
   EXPECT_LT((c.model.nominal_payload.inertia - d.model.nominal_payload.inertia).norm(), 1e-15);
 }
 
+// Each override changes the field it names.
 TEST(Parameters, OverridesReachTheConfiguration) {
   ParameterMap p = defaultParameters();
   p["input_source"] = std::string("commanded_torque");
@@ -61,6 +70,7 @@ TEST(Parameters, OverridesReachTheConfiguration) {
   EXPECT_NE(fingerprint(c), fingerprint(IdsConfig{}));
 }
 
+// Unset parameters keep their defaults.
 TEST(Parameters, PartialMapsKeepTheOtherDefaults) {
   const IdsConfig c = configFromParameters({{"detector.latch", false}});
   EXPECT_FALSE(c.detector.latch);
@@ -68,6 +78,7 @@ TEST(Parameters, PartialMapsKeepTheOtherDefaults) {
   EXPECT_EQ(c.input_source, InputSource::kTrustedReference);
 }
 
+// Meaningless values are refused at start-up.
 TEST(Parameters, InvalidValuesAreRejected) {
   EXPECT_THROW(configFromParameters({{"input_source", std::string("spoofed")}}),
                std::invalid_argument);

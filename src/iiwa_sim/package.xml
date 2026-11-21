@@ -1,5 +1,15 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   iiwa_sim - Gazebo Harmonic simulation of the robot cell
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   KUKA LBR iiwa 14 description (launch-time xacro), ros2_control hardware block,
+   FrictionDrift wear plugin with ground truth, gripper, world and controller settings.
+   Mesh and model origin: see NOTICE.
+  =============================================================================
+-->
+
 <package format="3">
   <name>iiwa_sim</name>
   <version>1.2.0</version>

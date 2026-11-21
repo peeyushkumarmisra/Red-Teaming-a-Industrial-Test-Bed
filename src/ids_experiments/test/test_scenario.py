@@ -1,3 +1,7 @@
+# =============================================================================
+#  test_scenario.py - scenario validation
+# =============================================================================
+
 import copy
 
 import pytest
@@ -72,6 +76,7 @@ def test_defaults_fill_optional_fields():
     (('attacks', 1, 'start'), 175.0),
     (('extra',), 1),
 ])
+# Each broken field gives a clear error before any run starts.
 def test_invalid_scenarios_are_rejected(path, value):
     with pytest.raises(ValueError):
         parse_scenario(with_change(path, value))
@@ -86,6 +91,7 @@ def test_load_from_file(tmp_path):
     assert s.attacks[0].joints == (1,)
 
 
+# Every kind the attack library offers can be written in a scenario.
 def test_every_attack_kind_and_the_cover_flag_are_accepted():
     data = {'name': 'kinds', 'seed': 4, 'duration': 300.0, 'cover_torque': True, 'attacks': [
         {'kind': 'step', 'joint': 4, 'magnitude': 0.02, 'start': 10, 'duration': 5},

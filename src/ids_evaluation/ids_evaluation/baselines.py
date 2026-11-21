@@ -1,3 +1,16 @@
+# =============================================================================
+#  baselines.py - simpler detectors to compare the IDS with (C22)
+# -----------------------------------------------------------------------------
+#  static:   |z| > limit on the standardised disturbance estimate of the v2 IDS.
+#  ewma:     one EWMA (lambda 0.2) of z instead of the fast/slow pair.
+#  momentum: a generalised-momentum observer on the measured torque, the classical
+#            collision-detection residual: r = K*(p - p0 - integral(tau + C^T v - g + r)).
+#  Every baseline gets the same debounce and hysteresis as the IDS and the lowest limit
+#  that raises no alarm on the training part of a nominal run.
+#  Why it matters: shows what the closed-loop model, the two time scales and the limit
+#  selection add over simpler designs.
+# =============================================================================
+
 from dataclasses import dataclass
 import math
 
@@ -7,6 +20,7 @@ from ids_evaluation import layout
 
 
 @dataclass(frozen=True)
+# Debounce 5 windows to raise, 5 windows below half the limit to clear: the IDS rules.
 class DetectorRules:
     debounce: int = 5
     clear_count: int = 5
@@ -41,6 +55,8 @@ def ewma_statistic(z, lam=0.2):
     return np.abs(out) / math.sqrt(lam / (2.0 - lam))
 
 
+# Smallest limit with no debounced alarm on the training data: a favourable choice for the
+# baseline.
 def lowest_quiet_limit(statistic, rules=DetectorRules(), skip=0):
     s = np.asarray(statistic, dtype=float)[skip:]
     n = rules.debounce
@@ -50,6 +66,8 @@ def lowest_quiet_limit(statistic, rules=DetectorRules(), skip=0):
     return float(windows.min(axis=-1).max()) * (1.0 + 1e-9) + 1e-12
 
 
+# Per-joint debounce and hysteresis; the primary joint is the one furthest above its limit at
+# onset.
 def alarm_series(statistic, limit, rules=DetectorRules()):
     s = np.asarray(statistic, dtype=float)
     n, k = s.shape
@@ -89,6 +107,8 @@ def status_from_alarms(alarm, primary, statistic, limit):
     return status
 
 
+# Payload mass in effect at each time: the PLC's payload context and mass, as the controller
+# and the IDS use them.
 def context_mass(reference, t):
     ref = np.asarray(reference, dtype=float)
     idx = np.searchsorted(ref[:, 0], t, side='right') - 1
@@ -98,6 +118,7 @@ def context_mass(reference, t):
     return out
 
 
+# Uses Pinocchio with the robot URDF and the nominal payload at the tool.
 class MomentumObserver:
 
     def __init__(self, urdf, gain=5.0, tip_joint='joint_a7', payload_com=(0.0, 0.0, 0.204),
@@ -142,10 +163,12 @@ class MomentumObserver:
             g = pin.computeGeneralizedGravity(self.model, self.data, q[k])
             p = m @ v[k]
             f = tau[k] + c.T @ v[k] - g
+            # Restart after a payload change, because the model jumps.
             if p0 is None or t[k] - changed < self.guard:
                 p0, integral, r = p, np.zeros_like(p), np.zeros_like(p)
             else:
                 dt = t[k] - t[k - 1]
+                # Trapezoid integration: accurate at the 100 Hz measurement rate.
                 integral = integral + (0.5 * (f + f_prev) + r) * dt
                 r = self.gain * (p - p0 - integral)
             f_prev = f

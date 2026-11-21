@@ -1,3 +1,16 @@
+# =============================================================================
+#  metrics.py - detection, latency, attribution and false alarms (C18)
+# -----------------------------------------------------------------------------
+#  Definitions (docs/v1.4.md):
+#  - An attack is detected if an alarm onset falls in [start, end + grace]; latency =
+#    onset - start (0 if an alarm was already active at the start).
+#  - Attributed: the primary joint at that onset is an attacked joint.
+#  - Before attack end: the onset came while the attack was still active, not from the
+#    transient when it stopped.
+#  - False alarm: an onset after the detector warm-up and outside every
+#    [start, end + tail]; the rate is per hour of that observed time.
+# =============================================================================
+
 from dataclasses import dataclass, field
 import math
 
@@ -55,6 +68,7 @@ class InstanceResult:
         return self.alarm_windows / self.armed_windows if self.armed_windows else math.nan
 
 
+# Attack events from the truth changes; an event still active at the end of the run stays open.
 def events_from_truth(attack, start=0.0):
     rows = np.asarray(attack, dtype=float).reshape(-1, layout.ATTACK_COLUMNS)
     events = []
@@ -73,6 +87,7 @@ def events_from_truth(attack, start=0.0):
     return events
 
 
+# Alarm episodes: onset, end and primary joint.
 def episodes(t, alarm, primary):
     t = np.asarray(t, dtype=float)
     a = np.asarray(alarm) > 0.5
@@ -97,6 +112,8 @@ def _overlap(a, b, windows):
     return total
 
 
+# Score one detector on one run. Only armed windows count; detection starts warmup seconds
+# after arming, as in the live IDS.
 def evaluate_instance(name, t, status, events, warmup=3.99, grace=1.0, tail=30.0, horizon=None):
     t = np.asarray(t, dtype=float)
     status = layout.pad_status(status)
@@ -135,6 +152,7 @@ def evaluate_instance(name, t, status, events, warmup=3.99, grace=1.0, tail=30.0
     return result
 
 
+# Pool events by detector, kind, joints and magnitude.
 def per_joint_table(results):
     groups = {}
     for run, r in results:
@@ -157,6 +175,7 @@ def per_joint_table(results):
     return rows
 
 
+# Pool false alarms and observed hours by detector.
 def false_alarm_table(results):
     pooled = {}
     for run, r in results:

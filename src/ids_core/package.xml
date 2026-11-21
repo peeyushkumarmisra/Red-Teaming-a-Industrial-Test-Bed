@@ -1,5 +1,15 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!--
+  =============================================================================
+   ids_core - the physics-informed intrusion detection algorithm
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   Closed-loop model of the arm, extended Kalman filter, Dual-EWMA statistics,
+   detector, limit selection and calibration, plus an offline replay of recorded runs
+   (v1.4). No ROS inside: see ids_ros for the node and the ids_replay command.
+  =============================================================================
+-->
+
 <package format="3">
   <name>ids_core</name>
   <version>1.4.0</version>

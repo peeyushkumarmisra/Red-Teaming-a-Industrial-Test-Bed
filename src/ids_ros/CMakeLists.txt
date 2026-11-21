@@ -1,3 +1,10 @@
+# =============================================================================
+#  ids_ros/CMakeLists.txt - the IDS as a ROS 2 node
+# -----------------------------------------------------------------------------
+#  The parameter handling is a small ROS-free library (tested anywhere); the node
+#  itself is built only when ROS 2 (ament) is present.
+# =============================================================================
+
 cmake_minimum_required(VERSION 3.16)
 project(ids_ros VERSION 1.4.0 LANGUAGES CXX)
 
@@ -15,17 +22,24 @@ if(NOT ament_cmake_FOUND)
   include(CTest)
 endif()
 find_package(ids_core REQUIRED)
+# yaml-cpp reads the IDS parameter file for ids_replay, so offline and live runs use the same
+# settings.
 find_package(yaml-cpp REQUIRED)
 
+# ROS parameters <-> IdsConfig, plus reading the node's parameter YAML file; kept free of ROS
+# so its tests and ids_replay run without ROS.
 add_library(ids_ros_parameters STATIC src/parameters.cpp src/parameter_file.cpp)
 set_target_properties(ids_ros_parameters PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(ids_ros_parameters PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(ids_ros_parameters PUBLIC ids_core::ids_core)
 target_link_libraries(ids_ros_parameters PRIVATE yaml-cpp::yaml-cpp)
 
+# ids_replay (v1.4): offline replay command. It needs no ROS, so it is built in every
+# environment.
 add_executable(ids_replay src/replay_main.cpp)
 target_link_libraries(ids_replay ids_ros_parameters)
 
+# The node: subscribes to the trusted reference and the measurements, publishes decisions.
 if(ament_cmake_FOUND)
   find_package(rclcpp REQUIRED)
   find_package(std_msgs REQUIRED)
@@ -63,5 +77,6 @@ endif()
 if(ament_cmake_FOUND)
   ament_package()
 else()
+  # Without ament, install it as a normal program.
   install(TARGETS ids_replay DESTINATION bin)
 endif()

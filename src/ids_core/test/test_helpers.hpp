@@ -1,3 +1,10 @@
+// =============================================================================
+//  test_helpers.hpp - small helpers shared by the tests
+// -----------------------------------------------------------------------------
+//  Test URDF path, the home pose, a smooth sinusoidal reference, and a feeder that
+//  hands reference samples to the IDS as simulated time advances (as the runtime does, B2).
+// =============================================================================
+
 #pragma once
 
 #include <cmath>
