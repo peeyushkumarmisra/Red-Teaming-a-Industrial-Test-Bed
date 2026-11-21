@@ -1,10 +1,3 @@
-# =============================================================================
-#  campaign.py - expand campaign.yaml into concrete runs
-# -----------------------------------------------------------------------------
-#  Applies the defaults, expands each family into one scenario per joint, checks every
-#  name and key, and turns (name, seed) into a scenario in the MitM's format.
-# =============================================================================
-
 from dataclasses import dataclass
 import fnmatch
 
@@ -12,10 +5,12 @@ import yaml
 
 from ids_experiments.scenario import parse_scenario
 
-TOP_KEYS = {'defaults', 'scenarios', 'families', 'campaign'}
+TOP_KEYS = {'defaults', 'scenarios', 'families', 'sweeps', 'campaign'}
 DEFAULT_KEYS = {'friction_profile', 'planner', 'seeds'}
-SCENARIO_KEYS = {'friction_profile', 'duration', 'planner', 'seeds', 'attacks'}
-FAMILY_KEYS = {'friction_profile', 'duration', 'planner', 'seeds', 'joints', 'attack'}
+SCENARIO_KEYS = {'friction_profile', 'duration', 'planner', 'seeds', 'attacks', 'cover_torque'}
+FAMILY_KEYS = {'friction_profile', 'duration', 'planner', 'seeds', 'joints', 'attack',
+               'cover_torque'}
+SWEEP_KEYS = FAMILY_KEYS | {'magnitudes'}
 
 
 @dataclass(frozen=True)
@@ -55,6 +50,7 @@ def _entry(name, defaults, spec, attacks):
         'planner': planner,
         'attacks': attacks,
         'seeds': _seeds(spec.get('seeds', defaults.get('seeds', [1])), f'{name}.seeds'),
+        'cover_torque': spec.get('cover_torque', False),
     }
     try:
         scenario_for(entry, entry['seeds'][0])
@@ -63,9 +59,10 @@ def _entry(name, defaults, spec, attacks):
     return entry
 
 
-# One run's scenario: the entry plus its seed.
 def scenario_for(entry, seed):
     data = {k: entry[k] for k in ('name', 'friction_profile', 'duration', 'planner', 'attacks')}
+    if entry.get('cover_torque'):
+        data['cover_torque'] = True
     data['seed'] = seed
     data['attacks'] = [dict(a) for a in entry['attacks']]
     data['planner'] = dict(entry['planner'])
@@ -73,7 +70,6 @@ def scenario_for(entry, seed):
     return data
 
 
-# Validate the whole file; unknown keys are errors, not ignored.
 def parse_campaign(data):
     data = _mapping(data, 'campaign file')
     _keys(data, TOP_KEYS, 'campaign file')
@@ -99,6 +95,25 @@ def parse_campaign(data):
                 raise ValueError(f'duplicate scenario name {name}')
             entries[name] = _entry(name, defaults, spec, [dict(attack, id=1, joint=joint)])
             families[family].append(name)
+    for sweep, spec in _mapping(data.get('sweeps'), 'sweeps').items():
+        spec = _mapping(spec, f'sweep {sweep}')
+        _keys(spec, SWEEP_KEYS, f'sweep {sweep}')
+        joints = spec.get('joints')
+        magnitudes = spec.get('magnitudes')
+        if not isinstance(joints, list) or not joints:
+            raise ValueError(f'sweep {sweep}: joints must be a non-empty list')
+        if not isinstance(magnitudes, list) or not magnitudes:
+            raise ValueError(f'sweep {sweep}: magnitudes must be a non-empty list')
+        attack = _mapping(spec.get('attack'), f'sweep {sweep}.attack')
+        families[sweep] = []
+        for joint in joints:
+            for magnitude in magnitudes:
+                name = f'{sweep}_a{joint}_m{magnitude:g}'
+                if name in entries:
+                    raise ValueError(f'duplicate scenario name {name}')
+                entries[name] = _entry(name, defaults, spec,
+                                       [dict(attack, id=1, joint=joint, magnitude=magnitude)])
+                families[sweep].append(name)
     order = []
     for item in data.get('campaign') or []:
         if item in families:
@@ -106,7 +121,7 @@ def parse_campaign(data):
         elif item in entries:
             order.append(item)
         else:
-            raise ValueError(f'campaign entry {item} is neither a scenario nor a family')
+            raise ValueError(f'campaign entry {item} is neither a scenario, a family nor a sweep')
     return Campaign(entries, tuple(order))
 
 
@@ -115,14 +130,12 @@ def load_campaign(path):
         return parse_campaign(yaml.safe_load(f))
 
 
-# Scenario for a launch: `scenario:=step_a4 seed:=1`.
 def resolve(campaign, name, seed):
     if name not in campaign.entries:
         raise ValueError(f'unknown scenario {name}; known: {", ".join(sorted(campaign.entries))}')
     return scenario_for(campaign.entries[name], int(seed))
 
 
-# The ordered list of (name, seed) to run; --only accepts patterns like 'step_*'.
 def plan(campaign, only=None, seeds=None):
     if only:
         candidates = list(campaign.order) + sorted(set(campaign.entries) - set(campaign.order))

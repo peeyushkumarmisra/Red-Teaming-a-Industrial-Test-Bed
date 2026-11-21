@@ -1,16 +1,3 @@
-# =============================================================================
-#  plc_planner.py - the PLC-style planner (trusted source of the reference)
-# -----------------------------------------------------------------------------
-#  Behaves like a PLC running a pick-and-place program: every 10 ms of simulation time
-#  it publishes one JointReference on /plc/reference (position, velocity,
-#  acceleration, payload context and mass, sequence number).
-#  Start-up: wait for /joint_states, /robot_description and a detached gripper
-#  (StartupGate), solve the station poses by IK seeded at the start pose, then stream.
-#  Program: shuttle the 5 kg part between source (-0.5, 0) and destination (0, 0.5).
-#  Gripper commands go to /gripper/attach and /gripper/detach; after each release the
-#  part is re-seated on its pad through Gazebo's set_pose service.
-# =============================================================================
-
 import numpy as np
 import rclpy
 from rclpy.node import Node
@@ -28,16 +15,13 @@ from ids_experiments.startup import StartupGate
 from ids_experiments.trajectory import move_duration
 from ids_interfaces.msg import JointReference
 
-# Joint velocity limits of the iiwa 14 (rad/s); moves use half of them (speed_scale).
 VELOCITY_LIMITS = np.array([1.4834, 1.4834, 1.7452, 1.3089, 2.2688, 2.356, 2.356])
 
 
-# All timing uses simulation time (use_sim_time).
 class PlcPlanner(Node):
 
     def __init__(self):
         super().__init__('plc_planner')
-        # Program and motion parameters (see docs/CONFIGURATION.md).
         self.declare_parameter('scan_period', 0.01)
         self.declare_parameter('start_delay', 2.0)
         self.declare_parameter('cycles', 0)
@@ -54,7 +38,6 @@ class PlcPlanner(Node):
         self.declare_parameter('max_acceleration', 2.0)
         self.declare_parameter('wait_for_gripper', True)
         self.declare_parameter('gripper_warning', 30.0)
-        # Re-seat the part after each release (models a locating nest, B23).
         self.declare_parameter('seat_parts', True)
         self.declare_parameter('world', 'cell')
         self.declare_parameter('payload_name', 'payload')
@@ -75,7 +58,6 @@ class PlcPlanner(Node):
             SetEntityPose, f"/world/{self.get_parameter('world').value}/set_pose")
         latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
-        # The trusted stream: the IDS listens here; the robot gets it through the MitM.
         self._reference_pub = self.create_publisher(JointReference, '/plc/reference', 100)
         self._attach_pub = self.create_publisher(Empty, '/gripper/attach', 10)
         self._detach_pub = self.create_publisher(Empty, '/gripper/detach', 10)
@@ -98,8 +80,6 @@ class PlcPlanner(Node):
             self.get_logger().info(f'gripper {msg.data}')
         self._gripper_state = msg.data
 
-    # Solve IK for all station poses and build the program; stretch move times if
-    # the velocity or acceleration limits require it.
     def _prepare(self):
         p = lambda name: self.get_parameter(name).value  # noqa: E731
         kinematics = Kinematics(self._description)
@@ -127,8 +107,6 @@ class PlcPlanner(Node):
             f'program ready: {len(program)} steps per cycle, travel {travel:.2f} s, '
             f'approach {approach:.2f} s, cycles {p("cycles") or "unlimited"}')
 
-    # One PLC scan: before the program, run the start-up gate; then publish the reference
-    # and any gripper or seat commands for this scan.
     def _scan(self):
         now = self.get_clock().now()
         t = now.nanoseconds * 1e-9
@@ -158,7 +136,6 @@ class PlcPlanner(Node):
             else:
                 self._detach_pub.publish(Empty())
         msg = JointReference()
-        # Stamp = simulation time of this scan; the IDS and the MitM time everything by it.
         msg.header.stamp = now.to_msg()
         msg.seq = self._seq
         msg.position = out.position.tolist()
@@ -173,7 +150,6 @@ class PlcPlanner(Node):
             self.get_logger().info(f'program complete after {self._sequencer.completed_passes} '
                                    'cycles; holding the last pose')
 
-    # Ask Gazebo to put the part back on its pad (upright, resting on the ground).
     def _seat(self, xy):
         if not self._seat_client.service_is_ready():
             self._warn_seat('the set_pose service is not available: the part is not re-seated')

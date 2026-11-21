@@ -1,9 +1,3 @@
-# =============================================================================
-#  test_sequencer.py - the PLC program and its handover order
-# -----------------------------------------------------------------------------
-#  The handover order is what keeps grabs from causing false alarms, so it is pinned here.
-# =============================================================================
-
 import numpy as np
 
 from ids_experiments.sequencer import (Command, Dwell, Move, Sequencer, SetContext,
@@ -21,7 +15,6 @@ def run(sequencer, seconds, period=0.01):
     return outputs
 
 
-# The reference never jumps between steps.
 def test_move_then_dwell_streams_a_continuous_profile():
     s = Sequencer(HOME, [Move(tuple(A['hover']), 1.0), Dwell(0.5)], passes=1)
     out = run(s, 2.0)
@@ -33,14 +26,12 @@ def test_move_then_dwell_streams_a_continuous_profile():
     assert not any(o.finished for t, o in out if t < 1.5)
 
 
-# Each gripper command is sent once.
 def test_commands_are_emitted_exactly_once_per_pass():
     s = Sequencer(HOME, [Command('attach'), Dwell(0.1), Command('detach'), Dwell(0.1)], passes=3)
     commands = [c.name for _, o in run(s, 1.0) for c in o.commands]
     assert commands == ['attach', 'detach'] * 3
 
 
-# Context on before attach; context off before detach.
 def test_shuttle_switches_context_inside_the_handover_order():
     s = Sequencer(HOME, shuttle_program(A, B, 5.0, 1.0, 0.5, 0.2), passes=1)
     events = []
@@ -61,7 +52,6 @@ def test_shuttle_switches_context_inside_the_handover_order():
     assert 0.0 < times['detach'] - times['context 0'] <= 0.02
 
 
-# The part leaves the floor 20 ms after the context change (B23).
 def test_the_lift_starts_on_the_scan_after_the_grab():
     s = Sequencer(HOME, shuttle_program(A, B, 5.0, 1.0, 0.5, 0.2), passes=1)
     out = run(s, 6.0)
@@ -74,7 +64,6 @@ def test_the_lift_starts_on_the_scan_after_the_grab():
     assert 0.0 < lift - attach <= 0.02
 
 
-# Never lift with the context still off.
 def test_lift_starts_after_the_payload_context_is_on():
     s = Sequencer(HOME, shuttle_program(A, B, 5.0, 1.0, 0.5, 0.2), passes=1)
     previous = None
@@ -101,7 +90,6 @@ def test_set_context_without_payload_reports_zero_mass():
     assert masses == {(1, 4.0), (0, 0.0)}
 
 
-# Re-seating happens after every release.
 def test_the_part_is_seated_on_its_pad_after_each_release_when_places_are_given():
     places = ((0.0, 0.5), (-0.5, 0.0))
     s = Sequencer(HOME, shuttle_program(A, B, 5.0, 1.0, 0.5, 0.2, places), passes=1)

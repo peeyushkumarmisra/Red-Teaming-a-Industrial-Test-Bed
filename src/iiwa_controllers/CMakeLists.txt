@@ -1,11 +1,3 @@
-# =============================================================================
-#  iiwa_controllers/CMakeLists.txt - the robot's tracking controller
-# -----------------------------------------------------------------------------
-#  The control logic is a ROS-free library (tracking core) with its own tests; the
-#  ros2_control plugin is a thin layer that is built only when ROS 2 is present.
-#  The IDS contract test (controller + IDS together) is built when ids_core is found.
-# =============================================================================
-
 cmake_minimum_required(VERSION 3.16)
 project(iiwa_controllers VERSION 1.2.0 LANGUAGES CXX)
 
@@ -24,7 +16,6 @@ if(NOT ament_cmake_FOUND)
 endif()
 find_package(iiwa_control_law REQUIRED)
 
-# Controller logic without ROS: testable anywhere, shared by the plugin.
 add_library(iiwa_tracking_core STATIC src/tracking_core.cpp)
 set_target_properties(iiwa_tracking_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(iiwa_tracking_core PUBLIC
@@ -46,7 +37,6 @@ if(ament_cmake_FOUND)
   ament_target_dependencies(${PROJECT_NAME}
     controller_interface hardware_interface pluginlib rclcpp rclcpp_lifecycle realtime_tools
     std_msgs ids_interfaces)
-  # Register the plugin so controller_manager can load it by name.
   pluginlib_export_plugin_description_file(controller_interface iiwa_controllers.xml)
   install(TARGETS ${PROJECT_NAME}
     ARCHIVE DESTINATION lib
@@ -74,7 +64,6 @@ if(BUILD_TESTING)
     target_link_libraries(${t} iiwa_tracking_core)
     target_include_directories(${t} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/test)
   endforeach()
-  # Contract test: the real controller logic feeding the real IDS (needs ids_core).
   find_package(ids_core QUIET)
   if(ids_core_FOUND)
     if(ament_cmake_FOUND)
@@ -90,7 +79,6 @@ if(BUILD_TESTING)
   if(ament_cmake_FOUND)
     find_package(controller_manager REQUIRED)
     find_package(ros2_control_test_assets REQUIRED)
-    # Loads the actual plugin through controller_manager (ROS only).
     ament_add_gtest(test_load_controller test/test_load_controller.cpp)
     ament_target_dependencies(test_load_controller
       controller_manager hardware_interface ros2_control_test_assets)

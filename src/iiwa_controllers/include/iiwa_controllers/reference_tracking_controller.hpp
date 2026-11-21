@@ -1,12 +1,3 @@
-// =============================================================================
-//  reference_tracking_controller.hpp - the ros2_control plugin
-// -----------------------------------------------------------------------------
-//  Claims the effort command and the position/velocity states of joint_a1..a7.
-//  Subscribes to /robot/reference (after the MitM) and /ids/alarm; publishes
-//  /robot/measurement every 10 ms. Real-time safe: the update loop never blocks
-//  (lock-free buffer in, real-time publisher out).
-// =============================================================================
-
 #pragma once
 
 #include <atomic>
@@ -32,7 +23,6 @@
 
 namespace iiwa_controllers {
 
-// Runs inside controller_manager at 1 kHz.
 class ReferenceTrackingController : public controller_interface::ControllerInterface {
  public:
   controller_interface::CallbackReturn on_init() override;
@@ -62,16 +52,13 @@ class ReferenceTrackingController : public controller_interface::ControllerInter
   std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>> position_states_;
   std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>> velocity_states_;
   std::vector<std::reference_wrapper<hardware_interface::LoanedCommandInterface>> effort_commands_;
-  // Latest reference, handed from the ROS thread to the real-time loop without locking.
   realtime_tools::RealtimeBuffer<std::shared_ptr<Reference>> reference_buffer_;
   std::atomic<bool> alarm_{false};
   rclcpp::Subscription<Reference>::SharedPtr reference_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr alarm_sub_;
   rclcpp::Publisher<Measurement>::SharedPtr measurement_pub_;
-  // Publishes from the real-time loop without blocking it.
   std::unique_ptr<realtime_tools::RealtimePublisher<Measurement>> measurement_rt_;
   MeasurementDecimator decimator_{10};
-  // Exact 1 ms timeline in simulation (parameter tick_clock).
   TickClock tick_clock_;
   bool use_tick_clock_ = false;
   std::uint64_t last_seq_ = 0;

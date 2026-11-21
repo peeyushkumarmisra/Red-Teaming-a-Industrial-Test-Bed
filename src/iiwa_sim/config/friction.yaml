@@ -1,15 +1,3 @@
-# =============================================================================
-#  friction.yaml - joint friction profiles (viscous, N*m*s/rad)
-# -----------------------------------------------------------------------------
-#  coefficient(t) = initial + rate * max(0, t - delay), capped at max (t = sim time).
-#  - none:    no friction.
-#  - nominal: constant friction; used to CALIBRATE the IDS.
-#  - wear:    friction grows 0.1 % of its initial value per second from 30 s, up to
-#             twice the initial value; used for EXPERIMENTS (the IDS must not mistake
-#             wear for an attack).
-#  - thesis:  the dissertation's v1 schedule (a4 only).
-# =============================================================================
-
 none:
   delay: 0.0
   initial: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -22,7 +10,6 @@ nominal:
   rate: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   max: [4.0, 4.0, 2.0, 2.0, 0.4, 0.2, 0.1]
 
-# Experiments: wear starts at 30 s, long before the attack at 120 s.
 wear:
   delay: 30.0
   initial: [4.0, 4.0, 2.0, 2.0, 0.4, 0.2, 0.1]

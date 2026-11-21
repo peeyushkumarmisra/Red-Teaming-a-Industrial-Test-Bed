@@ -1,11 +1,3 @@
-// =============================================================================
-//  detector.hpp - from statistics to alarms
-// -----------------------------------------------------------------------------
-//  Three channels per joint (fast difference, slow, command check), each with a
-//  debounce (N windows over the limit) and hysteresis (N windows under half the limit
-//  to clear). The alarm is the OR of all channels; it can latch until reset.
-// =============================================================================
-
 #pragma once
 
 #include <Eigen/Core>
@@ -15,7 +7,6 @@
 
 namespace ids_core {
 
-// Which channels and joints are alarming, and whether this window is a new onset.
 struct DetectorOutput {
   bool alarm = false;
   bool latched = false;
@@ -25,7 +16,6 @@ struct DetectorOutput {
   Mask7 command = Mask7::Constant(false);
 };
 
-// One channel for 7 joints: debounce and hysteresis per joint.
 class ChannelBank {
  public:
   void reset();

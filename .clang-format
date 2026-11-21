@@ -1,14 +1,13 @@
-# =============================================================================
-#  .clang-format - C++ formatting rules
-# -----------------------------------------------------------------------------
-#  One shared C++ style for every package (Google style, 100 columns, 2-space indent).
-#  Why it matters: the IDS, the controller and the simulation plugin are read side by
-#  side when a detection result is questioned; one style keeps reviews about logic,
-#  not layout. Run `clang-format -i <file>` before committing C++.
-# =============================================================================
+# ==================================================================================================
+# .clang-format - C++ Formatting Rules
+# --------------------------------------------------------------------------------------------------
+# This is a single formatting file for every C++ packages.
+# Why it Needed - One style keeps reviews about logic not the code layout.
+# Note: Run `clang-format -i <file>` before committing C++.
+# ==================================================================================================
 
 BasedOnStyle: Google
 ColumnLimit: 100
-IndentWidth: 2
+IndentWidth: 4
 DerivePointerAlignment: false
 PointerAlignment: Left

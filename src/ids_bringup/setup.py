@@ -1,9 +1,3 @@
-# =============================================================================
-#  setup.py - Python package, launch files, configs and two executables
-# -----------------------------------------------------------------------------
-#  run_supervisor (ends and summarises one run) and run_campaign (runs many).
-# =============================================================================
-
 from glob import glob
 
 from setuptools import find_packages, setup
@@ -12,7 +6,7 @@ package_name = 'ids_bringup'
 
 setup(
     name=package_name,
-    version='1.2.0',
+    version='1.4.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),

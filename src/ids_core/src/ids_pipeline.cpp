@@ -1,18 +1,3 @@
-// =============================================================================
-//  ids_pipeline.cpp - one window, from measurement to decision
-// -----------------------------------------------------------------------------
-//  For each measurement window:
-//  1. apply the trusted payload context (gripper empty or holding the part);
-//  2. skip and re-sync if the controller was halted, a payload change is too recent,
-//     or the gap is implausible;
-//  3. EKF predict + update -> disturbance per joint, standardised;
-//  4. command check: applied torque vs the torque the trusted reference implies;
-//  5. calibrating: record; armed: update the averages and the detector;
-//  6. at an alarm onset: roll back friction and baselines, and name the joint.
-//  Thesis mode follows the dissertation: no friction, no freeze or rollback, and only
-//  the fast channel decides (no slow detector, no command check).
-// =============================================================================
-
 #include "ids_core/ids_pipeline.hpp"
 
 #include <algorithm>
@@ -30,11 +15,8 @@ IdsPipeline::IdsPipeline(const IdsConfig& config, const std::string& urdf)
   const double dt = 1.0 / config_.nominal_rate_hz;
   physics_ewma_.configure(dt, config_.ewma.tau_fast, config_.ewma.tau_slow);
   command_ewma_.configure(dt, config_.ewma.tau_fast, config_.ewma.tau_slow);
-  // The slow detector and the command check are v2 additions; thesis mode keeps the
-  // dissertation's single fast channel.
   use_slow_ = config_.mode == EstimatorMode::kExtended && config_.detector.use_slow_detector;
   use_command_ = config_.mode == EstimatorMode::kExtended && config_.detector.use_command_check;
-  // 399 windows (about 4 s): the averages must settle before alarms count (B23).
   detector_warmup_ = static_cast<int>(std::ceil(2.0 * config_.ewma.tau_slow / dt));
 }
 
@@ -55,7 +37,6 @@ Calibration IdsPipeline::finishCalibration() {
 }
 
 void IdsPipeline::arm(const Calibration& calibration) {
-  // Never detect with a calibration made for another model or other settings.
   if (calibration.fingerprint != fingerprint_) {
     mode_ = Mode::kFault;
     throw std::runtime_error("calibration fingerprint does not match this model and configuration");
@@ -80,7 +61,6 @@ void IdsPipeline::addReference(const iiwa_control_law::ReferenceSample& sample) 
   track_.push(sample);
 }
 
-// Gripper empty (mass 0) or holding the part (mass from the trusted reference).
 void IdsPipeline::applyContext(double t) {
   const iiwa_control_law::ReferenceSample* s = track_.at(t, config_.model.reference_latency);
   if (s == nullptr) {
@@ -115,22 +95,18 @@ const IdsOutput& IdsPipeline::process(const Measurement& m) {
     initialized_ = true;
     return out_;
   }
-  // Number of controller ticks in this window, from the stamps (10 with the tick clock).
   const int steps = static_cast<int>(
       std::lround((m.stamp - last_stamp_) / config_.model.controller_period));
   if (steps < 1) {
     return out_;
   }
-  // Payload handover just happened: the physical grab is not modelled (B9).
   const bool guarded = m.stamp - context_change_ < config_.context_guard;
-  // Do not detect on windows the model cannot predict; re-sync instead (B6, B9).
   if (m.halted || guarded || steps > config_.max_steps_per_window) {
     ekf_.resync(m.q, m.v);
     last_stamp_ = m.stamp;
     last_tau_ = m.tau;
     return out_;
   }
-  // While alarmed, stop learning friction so the attack is not absorbed.
   const bool alarm_active = detector_.output().alarm;
   ekf_.predict(last_stamp_, steps, track_, last_tau_, alarm_active);
   const EkfOutput& e = ekf_.update(m.q, m.v, !alarm_active);
@@ -139,8 +115,6 @@ const IdsOutput& IdsPipeline::process(const Measurement& m) {
 
   Vec7 command_error = Vec7::Zero();
   bool command_ok = false;
-  // Command check: the reference sample the controller says it used, run through the
-  // shared control law, gives the torque it should have applied.
   if (!m.halted) {
     const iiwa_control_law::ReferenceSample* rs = track_.bySeq(m.reference_seq);
     if (rs != nullptr) {
@@ -153,7 +127,6 @@ const IdsOutput& IdsPipeline::process(const Measurement& m) {
   out_.friction = ekf_.state().b;
   out_.nis = e.nis;
 
-  // Calibration: only record. No detection while learning what normal looks like.
   if (mode_ == Mode::kCalibrating) {
     if (calibration_start_ < 0.0) {
       calibration_start_ = m.stamp;
@@ -164,10 +137,8 @@ const IdsOutput& IdsPipeline::process(const Measurement& m) {
     return out_;
   }
 
-  // Standardise with the calibration: 0 mean and unit spread under normal operation.
   const Vec7 u = (e.disturbance.cwiseQuotient(e.disturbance_std) - calibration_.physics_mean)
                      .cwiseQuotient(calibration_.physics_std);
-  // Freeze the baseline during an alarm (v2 only; the dissertation had no freeze).
   const bool freeze = alarm_active && config_.mode == EstimatorMode::kExtended;
   physics_ewma_.update(u, freeze);
   Vec7 command_stat = Vec7::Zero();
@@ -180,7 +151,6 @@ const IdsOutput& IdsPipeline::process(const Measurement& m) {
   }
   const Vec7 physics_stat = physics_ewma_.statistic().cwiseQuotient(calibration_.physics_scale);
   const Vec7 slow_stat = physics_ewma_.slowStatistic().cwiseQuotient(calibration_.slow_scale);
-  // During the warm-up the detector is fed zeros: no alarm can start.
   const bool warming_up = detector_windows_ < detector_warmup_;
   if (warming_up) {
     ++detector_windows_;
@@ -189,8 +159,6 @@ const IdsOutput& IdsPipeline::process(const Measurement& m) {
       warming_up ? detector_.update(Vec7::Zero(), Vec7::Zero(), Vec7::Zero(), use_slow_, false)
                  : detector_.update(physics_stat, slow_stat, command_stat, use_slow_,
                                     command_used);
-  // New alarm: undo the last 0.5 s of learning (v2), then name the joint whose statistic
-  // is furthest above its limit (each onset names its own joint, B23).
   if (d.onset) {
     if (config_.mode == EstimatorMode::kExtended) {
       ekf_.rollbackFriction(config_.ekf.rollback_steps);

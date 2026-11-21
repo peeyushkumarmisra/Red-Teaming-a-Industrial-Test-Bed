@@ -1,11 +1,3 @@
-// =============================================================================
-//  test_control_law.cpp - unit tests of the shared control law
-// -----------------------------------------------------------------------------
-//  Proves the properties the IDS relies on: the hold between samples, the torque
-//  formula, the clamp, and that a setpoint attack shows up as Kp * gamma on the
-//  attacked joint only.
-// =============================================================================
-
 #include <gtest/gtest.h>
 
 #include "iiwa_control_law/control_law.hpp"
@@ -19,7 +11,6 @@ using iiwa_control_law::ReferenceSample;
 using iiwa_control_law::referenceAt;
 using iiwa_control_law::Vec7;
 
-// Between samples the reference moves along its velocity.
 TEST(ControlLaw, FirstOrderHoldExtrapolatesWithVelocity) {
   ReferenceSample s;
   s.stamp = 1.0;
@@ -30,7 +21,6 @@ TEST(ControlLaw, FirstOrderHoldExtrapolatesWithVelocity) {
   EXPECT_NEAR(r.velocity(3), 0.2, 1e-12);
 }
 
-// A tick before the sample's stamp uses the sample unchanged.
 TEST(ControlLaw, ReferenceBeforeStampIsSampleItself) {
   ReferenceSample s;
   s.stamp = 2.0;
@@ -40,7 +30,6 @@ TEST(ControlLaw, ReferenceBeforeStampIsSampleItself) {
   EXPECT_DOUBLE_EQ(r.position(2), -0.3);
 }
 
-// A late reference stops after max_hold instead of running away.
 TEST(ControlLaw, StaleReferenceHoldsWithZeroVelocity) {
   ReferenceSample s;
   s.stamp = 0.0;
@@ -51,7 +40,6 @@ TEST(ControlLaw, StaleReferenceHoldsWithZeroVelocity) {
   EXPECT_DOUBLE_EQ(r.velocity.norm(), 0.0);
 }
 
-// The torque is exactly PD plus gravity.
 TEST(ControlLaw, TorqueIsPdPlusGravity) {
   const Gains g = Gains::iiwaDefault();
   const Vec7 q = Vec7::Zero();
@@ -65,7 +53,6 @@ TEST(ControlLaw, TorqueIsPdPlusGravity) {
   }
 }
 
-// Torques are clamped to the limits and the clamp is reported.
 TEST(ControlLaw, TorqueIsClampedAndMaskReportsSaturation) {
   const Gains g = Gains::iiwaDefault();
   ReferencePoint r{Vec7::Constant(10.0), Vec7::Zero()};
@@ -77,7 +64,6 @@ TEST(ControlLaw, TorqueIsClampedAndMaskReportsSaturation) {
   }
 }
 
-// The physical signature of a setpoint attack: Kp * gamma on one joint.
 TEST(ControlLaw, AttackOnSetpointShiftsTorqueByKpGamma) {
   const Gains g = Gains::iiwaDefault();
   const Vec7 q = Vec7::Constant(0.1);
@@ -92,7 +78,6 @@ TEST(ControlLaw, AttackOnSetpointShiftsTorqueByKpGamma) {
   }
 }
 
-// Holding a position damps any motion.
 TEST(ControlLaw, HoldTorqueDampsMotion) {
   const Gains g = Gains::iiwaDefault();
   const Vec7 tau = holdTorque(g, Vec7::Zero(), Vec7::Constant(0.1), Vec7::Zero(), Vec7::Zero());

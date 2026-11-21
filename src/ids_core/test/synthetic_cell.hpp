@@ -1,19 +1,10 @@
-// =============================================================================
-//  synthetic_cell.hpp - a simulated robot cell without Gazebo
-// -----------------------------------------------------------------------------
-//  A Pinocchio plant at 4 kHz, the real control law at 1 kHz, encoder noise, friction
-//  that wears, and optional attacks (setpoint step, setpoint ramp, torque bias). It
-//  feeds the real IdsPipeline, so detection, attribution and false alarms can be tested
-//  in seconds on any machine. Limitation: it uses the same URDF as the IDS, so it has
-//  no model mismatch; Gazebo runs test that.
-// =============================================================================
-
 #pragma once
 
 #include <cmath>
 #include <cstdint>
 #include <numbers>
 #include <random>
+#include <vector>
 
 #include "ids_core/ids_pipeline.hpp"
 #include "iiwa_control_law/control_law.hpp"
@@ -22,7 +13,6 @@
 
 namespace ids_core::test {
 
-// Attacks the cell can inject.
 enum class AttackKind { kNone, kSetpointStep, kSetpointRamp, kTorqueBias };
 
 struct Attack {
@@ -32,7 +22,6 @@ struct Attack {
   double start = 0.0;
 };
 
-// Plant step, controller rate, noise, friction and wear settings.
 struct CellConfig {
   double plant_dt = 0.00025;
   double controller_dt = 0.001;
@@ -51,7 +40,6 @@ struct CellConfig {
   std::uint64_t seed = 1;
 };
 
-// Runs plant, controller and IDS together; records alarms and attribution.
 class SyntheticCell {
  public:
   explicit SyntheticCell(const CellConfig& config = CellConfig{})
@@ -72,6 +60,7 @@ class SyntheticCell {
   }
 
   void setAttack(const Attack& attack) { attack_ = attack; }
+  void logReferences(std::vector<iiwa_control_law::ReferenceSample>* log) { reference_log_ = log; }
   double time() const { return static_cast<double>(tick_) * config_.controller_dt; }
   const Vec7& friction() const { return friction_; }
   const Vec7& position() const { return q_; }
@@ -87,6 +76,9 @@ class SyntheticCell {
           trusted.payload_mass = config_.payload_mass;
         }
         ids.addReference(trusted);
+        if (reference_log_ != nullptr) {
+          reference_log_->push_back(trusted);
+        }
         received_ = intercept(trusted);
       }
       carry(controller_, controller_payload_, received_.payload_context == 1);
@@ -161,6 +153,7 @@ class SyntheticCell {
   std::mt19937_64 rng_;
   std::normal_distribution<double> noise_;
   Attack attack_;
+  std::vector<iiwa_control_law::ReferenceSample>* reference_log_ = nullptr;
   iiwa_control_law::ReferenceSample received_;
   Vec7 q_ = Vec7::Zero();
   Vec7 v_ = Vec7::Zero();

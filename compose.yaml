@@ -1,155 +1,159 @@
-# =============================================================================
-#  compose.yaml - the containers of the testbed
-# -----------------------------------------------------------------------------
-#  Two working services and five placeholders, on three networks that mirror an
-#  industrial cell:
-#  - robot: Gazebo, the robot controller, the PLC-style planner, the attacker (MitM)
-#    node, the run supervisor and the recorder.
-#  - ids: the intrusion detection system. It sits only on monitor_net, the trusted
-#    network, so it reads the PLC's reference before the attacker can change it.
-#  - plc, attacker, eng-ws, hmi, range: idle stubs (profile "planned") that later
+# ==================================================================================================
+# compose.yaml - For creating containers of the repo
+# --------------------------------------------------------------------------------------------------
+# For Now - We have Two working services and five placeholders, on three networks that mirror an
+# industrial cell:
+# 1) robot: Gazebo, the robot controller, the PLC-style planner, the attacker (MitM) node, the run
+#           supervisor and the recorder.
+# 2) ids: The intrusion detection system. It sits only on monitor_net, the trusted network, so it
+#         reads the PLC's reference before the attacker can change it.
+# 3) Others like plc, attacker, eng-ws, hmi, range: idle stubs (profile "planned") that later
 #    releases turn into the OT network (OpenPLC, Modbus, HMI, recording range).
-#  Start: `docker compose up -d robot ids`. Shell: `docker compose exec ids bash`.
-# =============================================================================
+# Start: ` docker compose up -d robot ids `
+# Shell: ` docker compose exec ids bash `
+# ==================================================================================================
 
 name: thesis
 
-# Shared ROS 2 settings: one DDS domain and Cyclone DDS in every container.
+# Shared ROS2 settings: One DDS domain and Cyclone DDS in every container
 x-ros-env: &ros-env
-  ROS_DOMAIN_ID: "0"
-  RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    ROS_DOMAIN_ID: "0"
+    RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
 
-# The robot container has two networks. Cyclone DDS is told to use the monitor_net
-# address so the IDS (monitor_net only) can see the robot's topics (problem B17).
+# The robot container has 2 networks. Cyclone DDS uses monitor_net so IDS
+# can see the robot's topics over monitor_net only
 x-monitor-dds: &monitor-dds
-  CYCLONEDDS_URI: '<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="10.203.20.0"/></Interfaces></General></Domain></CycloneDDS>'
+    CYCLONEDDS_URI: '<CycloneDDS><Domain><General><Interfaces><NetworkInterface address="10.203.20.0"/></Interfaces></General></Domain></CycloneDDS>'
 
-# Template for the placeholder services: they only sleep until a later release fills them.
+# Placeholders and templates for services for later releases
 x-stub: &stub
-  image: ros:jazzy-ros-core
-  command: ["sleep", "infinity"]
-  init: true
-  profiles: ["planned"]
-  environment:
-    <<: *ros-env
+    image: ros:jazzy-ros-core
+    command: ["sleep", "infinity"]
+    init: true
+    profiles: ["planned"]
+    environment:
+        <<: *ros-env
 
 services:
-  # Simulation side of the cell. GUI goes to an X server on Windows (DISPLAY).
-  robot:
-    build:
-      context: .
-      dockerfile: docker/robot.Dockerfile
-    image: thesis/robot:dev
-    container_name: thesis-robot
-    hostname: robot
-    init: true
-    # Gazebo and DDS use shared memory; the Docker default (64 MB) is too small.
-    shm_size: 1gb
-    stdin_open: true
-    tty: true
-    environment:
-      <<: [*ros-env, *monitor-dds]
-      DISPLAY: host.docker.internal:0.0
-      QT_X11_NO_MITSHM: "1"
-      LIBGL_ALWAYS_SOFTWARE: "1"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      # Source is mounted (edit on Windows, build in Linux); build output stays in named
-      # volumes.
-      - ./src:/ws/src
-      - robot_build:/ws/build
-      - robot_install:/ws/install
-      - robot_log:/ws/log
-      # Runs, bags and calibration files land in the repository's data/ folder (git-ignored).
-      - ./data:/ws/data
-    networks:
-      - control_net
-      - monitor_net
+    # Simulation side of the cell. GUI goes to an X server on Windows (DISPLAY).
+    robot:
+        build:
+            context: .
+            dockerfile: docker/robot.Dockerfile
+        image: thesis/robot:dev
+        container_name: thesis-robot
+        hostname: robot
+        init: true
+        # Gazebo and DDS use shared memory as Docker default (64 MB) is too small
+        shm_size: 1gb
+        stdin_open: true
+        tty: true
+        environment:
+            <<: [*ros-env, *monitor-dds]
+            DISPLAY: host.docker.internal:0.0
+            QT_X11_NO_MITSHM: "1"
+            LIBGL_ALWAYS_SOFTWARE: "1"
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        volumes:
+            # Source is mounted (edit on Windows, build in Linux): build output stays in named vol
+            - ./src:/ws/src
+            - robot_build:/ws/build
+            - robot_install:/ws/install
+            - robot_log:/ws/log
+            # Runs, bags and calibration files land in the repository's data/ folder (git-ignored)
+            - ./data:/ws/data
+            - ./.clang-format:/ws/.clang-format:ro
+            - ./.flake8:/ws/.flake8:ro
+            - ./.editorconfig:/ws/.editorconfig:ro
+        networks:
+            - control_net
+            - monitor_net
 
-  # The detector. It builds only up to ids_ros and has no Gazebo installed.
-  ids:
-    build:
-      context: .
-      dockerfile: docker/ids.Dockerfile
-    image: thesis/ids:dev
-    container_name: thesis-ids
-    hostname: ids
-    init: true
-    stdin_open: true
-    tty: true
-    environment:
-      <<: [*ros-env, *monitor-dds]
-    volumes:
-      - ./src:/ws/src
-      - ids_build:/ws/build
-      - ids_install:/ws/install
-      - ids_log:/ws/log
-      - ./data:/ws/data
-    networks:
-      - monitor_net
+    # The detector. It builds only up to ids_ros and has no Gazebo installed.
+    ids:
+        build:
+            context: .
+            dockerfile: docker/ids.Dockerfile
+        image: thesis/ids:dev
+        container_name: thesis-ids
+        hostname: ids
+        init: true
+        stdin_open: true
+        tty: true
+        environment:
+            <<: [*ros-env, *monitor-dds]
+        volumes:
+            - ./src:/ws/src
+            - ids_build:/ws/build
+            - ids_install:/ws/install
+            - ids_log:/ws/log
+            - ./data:/ws/data # for same reason written in Robot container
+        networks:
+            - monitor_net
 
-  # Placeholder for the OpenPLC controller (v1.8).
-  plc:
-    <<: *stub
-    container_name: thesis-plc
-    hostname: plc
-    networks:
-      - control_net
-      - monitor_net
-      - ops_net
+    # Placeholder for the PLC (OpenPLC from v1.8). It sits on all three networks.
+    plc:
+        <<: *stub
+        container_name: thesis-plc
+        hostname: plc
+        networks:
+            - control_net
+            - monitor_net
+            - ops_net
 
-  # Placeholder for the network attacker (v1.6 / v1.8). It sits on the control network only.
-  attacker:
-    <<: *stub
-    container_name: thesis-attacker
-    hostname: attacker
-    networks:
-      - control_net
+    # Placeholder for the network attacker (v1.6 / v1.8). It sits on the control network only.
+    attacker:
+        <<: *stub
+        container_name: thesis-attacker
+        hostname: attacker
+        networks:
+            - control_net
 
-  # Placeholder for the engineering workstation that uploads PLC programs (v1.8).
-  eng-ws:
-    <<: *stub
-    container_name: thesis-eng-ws
-    hostname: eng-ws
-    networks:
-      - ops_net
+    # Placeholder for the engineering workstation that uploads PLC programs (v1.8).
+    eng-ws:
+        <<: *stub
+        container_name: thesis-eng-ws
+        hostname: eng-ws
+        networks:
+            - ops_net
 
-  # Placeholder for the operator HMI (v1.8).
-  hmi:
-    <<: *stub
-    container_name: thesis-hmi
-    hostname: hmi
-    networks:
-      - ops_net
+    # Placeholder for the operator HMI (v1.8).
+    hmi:
+        <<: *stub
+        container_name: thesis-hmi
+        hostname: hmi
+        networks:
+            - ops_net
 
-  # Placeholder for the recording and orchestration range (v1.8).
-  range:
-    <<: *stub
-    container_name: thesis-range
-    hostname: range
-    networks:
-      - monitor_net
-      - ops_net
+    # Placeholder for the recording and orchestration range (v1.8).
+    range:
+        <<: *stub
+        container_name: thesis-range
+        hostname: range
+        networks:
+            - monitor_net
+            - ops_net
 
-# control_net: robot and attackers. monitor_net: trusted network for the IDS.
-# ops_net: office side (HMI, engineering workstation).
+# control_net - Is between robot and attacker
+# monitor_net - Is the trusted network for the IDS
+# ops_net: Is for HMI, engineering workstation
 networks:
-  control_net:
-    driver: bridge
-  monitor_net:
-    driver: bridge
-    ipam:
-      config:
-        # Fixed subnet: CYCLONEDDS_URI above selects the interface by this address.
-        - subnet: 10.203.20.0/24
-  ops_net:
-    driver: bridge
+    control_net:
+        driver: bridge
+    monitor_net:
+        driver: bridge
+        ipam:
+            config:
+                # Fixed subnet: CYCLONEDDS_URI above selects the interface by this address.
+                - subnet: 10.203.20.0/24
+    ops_net:
+        driver: bridge
 
 volumes:
-  robot_build:
-  robot_install:
-  robot_log:
-  ids_build:
-  ids_install:
-  ids_log:
+    robot_build:
+    robot_install:
+    robot_log:
+    ids_build:
+    ids_install:
+    ids_log:

@@ -1,9 +1,3 @@
-// =============================================================================
-//  test_conversions.cpp - message conversions are exact
-// -----------------------------------------------------------------------------
-//  Uses plain structs shaped like the generated messages, so it runs without ROS.
-// =============================================================================
-
 #include <gtest/gtest.h>
 
 #include <array>
@@ -50,7 +44,6 @@ struct FakeStatus {
 
 }  // namespace
 
-// Reference message -> sample, field by field.
 TEST(Conversions, ReferenceMessageBecomesASample) {
   FakeReference msg;
   msg.seq = 42;
@@ -71,7 +64,6 @@ TEST(Conversions, ReferenceMessageBecomesASample) {
   EXPECT_DOUBLE_EQ(s.payload_mass, 5.0);
 }
 
-// Measurement message -> IDS window, field by field.
 TEST(Conversions, MeasurementMessageBecomesAMeasurement) {
   FakeMeasurement msg;
   msg.position[2] = 1.5;
@@ -88,7 +80,6 @@ TEST(Conversions, MeasurementMessageBecomesAMeasurement) {
   EXPECT_TRUE(m.halted);
 }
 
-// Every status field is filled.
 TEST(Conversions, OutputFillsEveryStatusField) {
   ids_core::IdsOutput out;
   out.mode = ids_core::Mode::kArmed;
@@ -125,7 +116,6 @@ TEST(Conversions, OutputFillsEveryStatusField) {
   EXPECT_DOUBLE_EQ(msg.step_time_us, 215.0);
 }
 
-// No alarm: primary joint is -1.
 TEST(Conversions, NoAlarmMeansNoPrimaryJoint) {
   ids_core::IdsOutput out;
   FakeStatus msg;

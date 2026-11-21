@@ -1,11 +1,3 @@
-# =============================================================================
-#  supervisor_node.py - ends a run on time and writes summary.yaml
-# -----------------------------------------------------------------------------
-#  Ends the run `duration` seconds of simulation time after the first trusted reference
-#  (the launch then shuts everything down), gives up if no reference arrives within
-#  start_timeout of wall time, prints progress, and writes the summary.
-# =============================================================================
-
 import time
 
 import rclpy
@@ -21,7 +13,6 @@ def stamp_of(msg):
     return msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
 
 
-# Listens to the reference, the measurements and both IDS status topics.
 class RunSupervisor(Node):
 
     def __init__(self):
@@ -65,13 +56,11 @@ class RunSupervisor(Node):
     def _on_status(self, namespace, msg):
         self.monitor.on_status(namespace, stamp_of(msg), msg.mode, msg.alarm)
 
-    # Nothing started within start_timeout: write status no_reference and stop.
     def check_timeout(self):
         if (self.status is None and not self.monitor.started
                 and time.monotonic() - self._started > self._start_timeout):
             self.finish('no_reference')
 
-    # Write summary.yaml and exit; the launch shuts down on exit.
     def finish(self, status):
         self.status = status
         summary = self.monitor.summary(status)

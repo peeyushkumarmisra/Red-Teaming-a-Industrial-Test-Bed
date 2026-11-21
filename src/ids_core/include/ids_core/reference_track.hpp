@@ -1,11 +1,3 @@
-// =============================================================================
-//  reference_track.hpp - recent PLC reference samples
-// -----------------------------------------------------------------------------
-//  A fixed-size ring buffer of the last 512 reference samples (about 5 s at 100 Hz).
-//  The model looks up which sample the controller was following at each tick.
-//  Fixed size: no heap allocation while the IDS runs.
-// =============================================================================
-
 #pragma once
 
 #include <array>
@@ -38,7 +30,6 @@ class ReferenceTrack {
 
   const iiwa_control_law::ReferenceSample& newest() const { return get(0); }
 
-  // Newest sample that had arrived by time t (stamp + latency <= t).
   const iiwa_control_law::ReferenceSample* at(double t, double latency) const {
     for (std::size_t i = 0; i < size_; ++i) {
       const auto& s = get(i);
@@ -49,7 +40,6 @@ class ReferenceTrack {
     return size_ > 0 ? &get(size_ - 1) : nullptr;
   }
 
-  // Sample with a given sequence number (the one the controller reports it used).
   const iiwa_control_law::ReferenceSample* bySeq(std::uint64_t seq) const {
     for (std::size_t i = 0; i < size_; ++i) {
       const auto& s = get(i);

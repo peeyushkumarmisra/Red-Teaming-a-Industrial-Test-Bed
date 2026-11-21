@@ -1,10 +1,3 @@
-// =============================================================================
-//  test_calibration.cpp - fingerprint and calibration file
-// -----------------------------------------------------------------------------
-//  SHA-256 vectors, what the fingerprint must and must not react to, file round trip,
-//  and the recorder's statistics.
-// =============================================================================
-
 #include <gtest/gtest.h>
 
 #include <cstdio>
@@ -39,7 +32,6 @@ std::string replaceOnce(std::string text, const std::string& from, const std::st
 
 }  // namespace
 
-// SHA-256 matches the published test vectors.
 TEST(Sha256, KnownVectors) {
   EXPECT_EQ(ids_core::sha256Hex(""),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
@@ -48,7 +40,6 @@ TEST(Sha256, KnownVectors) {
   EXPECT_EQ(ids_core::sha256Hex(std::string(1000, 'a')).size(), 64u);
 }
 
-// Changing the model, gains or detector settings changes the fingerprint.
 TEST(Fingerprint, ChangesWithModelGainsAndDetectorSettings) {
   const std::string u = urdf();
   IdsConfig c;
@@ -66,7 +57,6 @@ TEST(Fingerprint, ChangesWithModelGainsAndDetectorSettings) {
                       replaceOnce(u, "<axis xyz=\"0 -1 0\" />", "<axis xyz=\"0 1 0\" />"), c));
 }
 
-// Formatting and simulator-only tags do not (B8).
 TEST(Fingerprint, IgnoresFormattingAndSimulatorOnlyElements) {
   const std::string u = urdf();
   const IdsConfig c;
@@ -80,7 +70,6 @@ TEST(Fingerprint, IgnoresFormattingAndSimulatorOnlyElements) {
   EXPECT_EQ(base, ids_core::computeFingerprint(sim, c));
 }
 
-// A saved calibration loads back identically.
 TEST(Calibration, SaveAndLoadRoundTrip) {
   Calibration cal;
   cal.fingerprint = "abc123";
@@ -102,7 +91,6 @@ TEST(Calibration, SaveAndLoadRoundTrip) {
   std::remove(path.c_str());
 }
 
-// Means, spreads and limits come out as expected.
 TEST(Calibration, RecorderEstimatesMomentsAndPicksLimits) {
   IdsConfig c;
   CalibrationRecorder rec;

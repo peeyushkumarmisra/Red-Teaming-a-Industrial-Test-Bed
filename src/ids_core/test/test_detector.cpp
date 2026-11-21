@@ -1,10 +1,3 @@
-// =============================================================================
-//  test_detector.cpp - alarm logic and limit selection
-// -----------------------------------------------------------------------------
-//  Debounce, hysteresis, latch, channel separation, and that the chosen limits really
-//  give the target false-alarm rate.
-// =============================================================================
-
 #include <gtest/gtest.h>
 
 #include "ids_core/detector.hpp"
@@ -33,7 +26,6 @@ Vec7 on(int joint, double value) {
 
 }  // namespace
 
-// One or four windows over the limit are not an alarm; five are.
 TEST(Detector, NeedsDebounceSamplesInARow) {
   Detector d = make();
   for (int k = 0; k < 4; ++k) {
@@ -48,7 +40,6 @@ TEST(Detector, NeedsDebounceSamplesInARow) {
   EXPECT_FALSE(out.physics(3));
 }
 
-// One onset per alarm; clears only below half the limit.
 TEST(Detector, OnsetFiresOnceAndHysteresisClears) {
   Detector d = make(false);
   for (int k = 0; k < 5; ++k) d.update(on(0, 5.0), Vec7::Zero(), Vec7::Zero(), true, true);
@@ -60,7 +51,6 @@ TEST(Detector, OnsetFiresOnceAndHysteresisClears) {
   EXPECT_FALSE(d.output().latched);
 }
 
-// A latched alarm stays until reset.
 TEST(Detector, LatchHoldsUntilReset) {
   Detector d = make(true);
   for (int k = 0; k < 5; ++k) d.update(on(5, 9.0), Vec7::Zero(), Vec7::Zero(), true, true);
@@ -71,7 +61,6 @@ TEST(Detector, LatchHoldsUntilReset) {
   EXPECT_FALSE(d.output().latched);
 }
 
-// Channels are independent and can be switched off.
 TEST(Detector, SlowAndCommandChannelsAreSeparateAndCanBeDisabled) {
   Detector d = make();
   for (int k = 0; k < 5; ++k) d.update(Vec7::Zero(), on(1, 6.0), on(4, 6.0), false, false);
@@ -81,7 +70,6 @@ TEST(Detector, SlowAndCommandChannelsAreSeparateAndCanBeDisabled) {
   EXPECT_TRUE(d.output().command(4));
 }
 
-// Higher limits and longer debounce mean fewer false alarms.
 TEST(LimitSelection, RatesFallWithLimitAndDebounce) {
   AlarmModel m;
   const auto r5 = ids_core::falseAlarmRatesPerHour(m, {3.0, 3.5, 4.0}, 2.0, 1);
@@ -92,7 +80,6 @@ TEST(LimitSelection, RatesFallWithLimitAndDebounce) {
   EXPECT_GT(r1[0], r5[0]);
 }
 
-// The chosen limit meets its target on new noise.
 TEST(LimitSelection, SelectedLimitMeetsItsTargetOnFreshNoise) {
   AlarmModel m;
   const double target = 20.0;
@@ -102,7 +89,6 @@ TEST(LimitSelection, SelectedLimitMeetsItsTargetOnFreshNoise) {
   EXPECT_LT(check, target * 2.0);
 }
 
-// Very small budgets give sensible, higher limits.
 TEST(LimitSelection, TinyBudgetsExtrapolateToHigherLimits) {
   AlarmModel m;
   const double loose = ids_core::selectLimit(m, 10.0, 3.0, 5);

@@ -1,11 +1,3 @@
-// =============================================================================
-//  parameters.hpp - ROS parameters <-> IDS configuration
-// -----------------------------------------------------------------------------
-//  Every IdsConfig field is one ROS parameter with the same dotted name
-//  (for example detector.debounce). Unknown names and invalid values are rejected
-//  when the node starts, so a typo cannot silently change detection.
-// =============================================================================
-
 #pragma once
 
 #include <cstdint>

@@ -1,25 +1,24 @@
-# =============================================================================
-#  monitor.py - is this run healthy, and what did the IDS do?
-# -----------------------------------------------------------------------------
-#  ROS-free bookkeeping for the run supervisor: run time from the first reference,
-#  status counts per IDS instance, first alarm, and torque saturation. A run with the
-#  arm at its torque limits in more than 1 % of windows is flagged as not nominal and
-#  must be excluded from evaluation (B21).
-# =============================================================================
+# ==================================================================================================
+# monitor.py - this monitors runs
+# --------------------------------------------------------------------------------------------------
+# ROS-free bookkeeping for the run supervisor: run time from the first reference, status counts per
+# IDS instance, first alarm, and torque saturation. A run with the arm at its torque limits in more
+# than 1 % of windows is flagged as not nominal and must be excluded from evaluation (B21).
+# ==================================================================================================
 
-MODES = {0: 'waiting', 1: 'calibrating', 2: 'armed', 3: 'fault'}
 # Torque limits of the iiwa 14 (N*m), same as the controller's.
 EFFORT_LIMITS = (320.0, 320.0, 176.0, 176.0, 110.0, 40.0, 40.0)
+MODES = {0: 'waiting', 1: 'calibrating', 2: 'armed', 3: 'fault'}
 
 
 class RunMonitor:
 
-    def __init__(self, duration, namespaces=('ids', 'ids_thesis'), effort_limits=EFFORT_LIMITS,
+    def __init__(self, duration, namespaces=('ids', 'ids_thesis'), effort_limits = EFFORT_LIMITS, 
                  saturation_warning=0.01):
         self.duration = float(duration)
         self.first_reference = None
         self.last_reference = None
-        self.references = 0
+        self.reference = 0
         self.effort_limits = [float(x) for x in effort_limits]
         self.saturation_warning = float(saturation_warning)
         self.measurements = 0
@@ -42,11 +41,11 @@ class RunMonitor:
     def on_reference(self, stamp):
         if self.first_reference is None:
             self.first_reference = stamp
-        self.last_reference = max(stamp, self.last_reference or stamp)
-        self.references += 1
+        self.last_reference = max(stamp. self.last_reference or stamp)
+        self.reference += 1
         return self.done
 
-    # Count windows in which any joint torque sits at its limit.
+    # Count window in which any joint torque sits at its limit.
     def on_measurement(self, efforts):
         if not self.started:
             return
@@ -58,12 +57,12 @@ class RunMonitor:
     def torque_saturation(self):
         return self.saturated / self.measurements if self.measurements else None
 
-    # Per IDS instance: messages, modes, alarm samples, first alarm time.
+    # Per IDS instance: messages, modes, alarm samples, first alarm time
     def on_status(self, namespace, stamp, mode, alarm):
         s = self.ids[namespace]
         s['status_messages'] += 1
         name = MODES.get(mode, str(mode))
-        s['modes'][name] = s['modes'].get(name, 0) + 1
+        s['modes'][name] = s['modes'].get(name,0) + 1
         if alarm:
             s['alarm_samples'] += 1
             if s['first_alarm'] is None and self.started:

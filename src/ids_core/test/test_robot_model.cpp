@@ -1,9 +1,3 @@
-// =============================================================================
-//  test_robot_model.cpp - the rigid-body model is right
-// -----------------------------------------------------------------------------
-//  Dynamics, derivatives (against finite differences) and payload handling.
-// =============================================================================
-
 #include <gtest/gtest.h>
 
 #include <Eigen/Eigenvalues>
@@ -22,7 +16,6 @@ RobotModel load() { return RobotModel::fromUrdfFile(ids_core::test::urdfPath());
 
 }  // namespace
 
-// The URDF loads as a 7-joint arm with its limits.
 TEST(RobotModel, LoadsSevenJointsWithLimits) {
   RobotModel m = load();
   EXPECT_EQ(m.jointNames()[0], "joint_a1");
@@ -31,7 +24,6 @@ TEST(RobotModel, LoadsSevenJointsWithLimits) {
   EXPECT_DOUBLE_EQ(m.effortLimits()(6), 40.0);
 }
 
-// The mass matrix is physically valid.
 TEST(RobotModel, MassMatrixSymmetricPositiveDefinite) {
   RobotModel m = load();
   const Mat7 mm = m.massMatrix(ids_core::test::homePose());
@@ -40,7 +32,6 @@ TEST(RobotModel, MassMatrixSymmetricPositiveDefinite) {
   EXPECT_GT(es.eigenvalues().minCoeff(), 0.0);
 }
 
-// The inverse mass from the derivative routine is the real inverse.
 TEST(RobotModel, InverseMassFromDerivativesMatchesInverse) {
   RobotModel m = load();
   const Vec7 q = ids_core::test::homePose();
@@ -50,14 +41,12 @@ TEST(RobotModel, InverseMassFromDerivativesMatchesInverse) {
   EXPECT_LT((minv * m.massMatrix(q) - Mat7::Identity()).norm(), 1e-8);
 }
 
-// Gravity torque = torque needed to hold still.
 TEST(RobotModel, GravityEqualsInverseDynamicsAtRest) {
   RobotModel m = load();
   const Vec7 q = ids_core::test::homePose();
   EXPECT_LT((m.gravity(q) - m.inverseDynamics(q, Vec7::Zero(), Vec7::Zero())).norm(), 1e-10);
 }
 
-// Forward and inverse dynamics undo each other.
 TEST(RobotModel, ForwardAndInverseDynamicsAreConsistent) {
   RobotModel m = load();
   const Vec7 q = ids_core::test::homePose();
@@ -68,7 +57,6 @@ TEST(RobotModel, ForwardAndInverseDynamicsAreConsistent) {
   EXPECT_LT((m.forwardDynamics(q, v, tau) - a).norm(), 1e-8);
 }
 
-// Analytic gravity derivative is correct.
 TEST(RobotModel, GravityDerivativeMatchesFiniteDifference) {
   RobotModel m = load();
   const Vec7 q = ids_core::test::homePose();
@@ -85,7 +73,6 @@ TEST(RobotModel, GravityDerivativeMatchesFiniteDifference) {
   EXPECT_LT((analytic - numeric).norm(), 1e-5);
 }
 
-// Analytic dynamics derivatives are correct (the EKF depends on them).
 TEST(RobotModel, ForwardDynamicsDerivativesMatchFiniteDifference) {
   RobotModel m = load();
   const Vec7 q = ids_core::test::homePose();
@@ -109,7 +96,6 @@ TEST(RobotModel, ForwardDynamicsDerivativesMatchFiniteDifference) {
   EXPECT_LT((dv - nv).norm() / (nv.norm() + 1e-9), 1e-5);
 }
 
-// Picking up and releasing the part leaves no residue in the model.
 TEST(RobotModel, PayloadIsAddedAndRemovedExactly) {
   RobotModel m = load();
   Vec7 q = Vec7::Zero();
@@ -122,7 +108,6 @@ TEST(RobotModel, PayloadIsAddedAndRemovedExactly) {
   EXPECT_LT((m.gravity(q) - g0).norm(), 1e-12);
 }
 
-// Two copies of the model do not share state.
 TEST(RobotModel, CopiesAreIndependent) {
   RobotModel a = load();
   RobotModel b = a;

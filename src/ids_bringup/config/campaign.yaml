@@ -1,17 +1,3 @@
-# =============================================================================
-#  campaign.yaml - every experiment run, by name
-# -----------------------------------------------------------------------------
-#  defaults:  shared by all runs (friction wear, endless pick-and-place, 5 kg part,
-#             seeds 1-3).
-#  scenarios: single runs (smoke test, calibration, nominal).
-#  families:  one run per joint (step_a1..step_a7, ramp_a1..ramp_a7).
-#  campaign:  the default order for `ros2 run ids_bringup run_campaign`
-#             (45 runs: nominal x 3, then step and ramp on 7 joints x 3 seeds).
-#  Times are seconds after the first trusted reference. Attacks start at 120 s, well
-#  after wear begins at 30 s, so the IDS must see the attack through the wear.
-#  v1.2 measured only nominal and step_a4 with seed 1 (see docs/v1.2.md).
-# =============================================================================
-
 defaults:
   friction_profile: wear
   planner:
@@ -20,21 +6,27 @@ defaults:
   seeds: [1, 2, 3]
 
 scenarios:
-  # 60 s plumbing check (IDS not needed).
   smoke:
     duration: 60.0
     seeds: [1]
-  # Constant friction for 130 s: 2 s warm-up + 120 s recorded by the IDS.
   calibration:
     friction_profile: nominal
     duration: 130.0
     seeds: [1]
-  # No attack for 600 s under wear: measures false alarms.
   nominal:
     duration: 600.0
+  coordinated_a2a4:
+    duration: 180.0
+    attacks:
+      - {kind: coordinated, joints: [2, 4], magnitudes: [0.005, 0.005], start: 120.0,
+         duration: 10.0}
+  step_a4_cover:
+    duration: 180.0
+    cover_torque: true
+    attacks:
+      - {kind: step, joint: 4, magnitude: 0.02, start: 120.0, duration: 10.0}
 
 families:
-  # 0.02 rad setpoint step for 10 s: the abrupt attack (dissertation's case).
   step:
     duration: 180.0
     joints: [1, 2, 3, 4, 5, 6, 7]
@@ -43,13 +35,86 @@ families:
       magnitude: 0.02
       start: 120.0
       duration: 10.0
-  # 0.001 rad/s for 30 s (0.03 rad in total): the slow, stealthy attack.
   ramp:
     duration: 180.0
     joints: [1, 2, 3, 4, 5, 6, 7]
     attack:
       kind: ramp
       magnitude: 0.001
+      start: 120.0
+      duration: 30.0
+  sine:
+    duration: 180.0
+    joints: [4]
+    attack:
+      kind: sine
+      magnitude: 0.01
+      frequency: 0.5
+      start: 120.0
+      duration: 10.0
+  scaling:
+    duration: 180.0
+    joints: [4]
+    attack:
+      kind: scaling
+      magnitude: 1.05
+      start: 120.0
+      duration: 10.0
+  freeze:
+    duration: 180.0
+    joints: [4]
+    attack:
+      kind: freeze
+      start: 120.0
+      duration: 10.0
+  replay:
+    duration: 180.0
+    joints: [4]
+    attack:
+      kind: replay
+      lag: 4.0
+      start: 120.0
+      duration: 10.0
+  delay:
+    duration: 180.0
+    joints: [4]
+    attack:
+      kind: delay
+      lag: 0.2
+      start: 120.0
+      duration: 10.0
+  noise:
+    duration: 180.0
+    joints: [4]
+    attack:
+      kind: noise
+      magnitude: 0.002
+      start: 120.0
+      duration: 10.0
+  drift_mimic:
+    duration: 180.0
+    joints: [4]
+    attack:
+      kind: drift_mimic
+      magnitude: 0.002
+      start: 120.0
+      duration: 30.0
+
+sweeps:
+  step_sweep:
+    duration: 180.0
+    joints: [1, 2, 3, 4, 5, 6, 7]
+    magnitudes: [0.0025, 0.005, 0.01, 0.02]
+    attack:
+      kind: step
+      start: 120.0
+      duration: 10.0
+  ramp_sweep:
+    duration: 180.0
+    joints: [1, 2, 3, 4, 5, 6, 7]
+    magnitudes: [0.00025, 0.0005, 0.001]
+    attack:
+      kind: ramp
       start: 120.0
       duration: 30.0
 

@@ -1,12 +1,3 @@
-# =============================================================================
-#  experiment.launch.py - one complete, recorded experiment run
-# -----------------------------------------------------------------------------
-#  ros2 launch ids_bringup experiment.launch.py scenario:=step_a4 seed:=1
-#  Starts the simulation (sim.launch.py), the rosbag recorder, the PLC planner, the
-#  MitM with the scenario's attacks, and the run supervisor; shuts everything down when
-#  the supervisor finishes. The IDS is started separately in the ids container.
-# =============================================================================
-
 from datetime import datetime
 import os
 
@@ -29,7 +20,6 @@ def _truthy(value):
     return value.strip().lower() in ('1', 'true', 'yes', 'on')
 
 
-# Resolve the scenario, create the run folder, and build the list of processes.
 def _run(context):
     def arg(name):
         return LaunchConfiguration(name).perform(context)
@@ -48,7 +38,6 @@ def _run(context):
                           'controllers_file': files.controllers_file,
                           'payload_mass': str(float(planner['payload_mass'])),
                           'gui': arg('gui')}.items())
-    # Record in simulation time, so bag stamps line up with message stamps.
     record = ExecuteProcess(
         cmd=['ros2', 'bag', 'record', '--storage', 'mcap', '--use-sim-time',
              '-o', files.bag_directory, '--topics', *BAG_TOPICS],
@@ -57,7 +46,6 @@ def _run(context):
                parameters=[{'use_sim_time': True, 'cycles': int(planner['cycles']),
                             'payload_mass': float(planner['payload_mass'])}],
                output='screen', emulate_tty=True)
-    # The attacker, configured by this run's scenario file.
     mitm = Node(package='ids_experiments', executable='mitm', name='mitm',
                 parameters=[{'use_sim_time': True, 'scenario_file': files.scenario_file}],
                 output='screen', emulate_tty=True)
@@ -69,14 +57,12 @@ def _run(context):
     return [
         LogInfo(msg=f"run {scenario['name']} seed {scenario['seed']} -> {files.directory}"),
         sim, record, plc, mitm, supervisor,
-        # When the supervisor exits, the whole run shuts down.
         RegisterEventHandler(OnProcessExit(
             target_action=supervisor,
             on_exit=[EmitEvent(event=Shutdown(reason='run finished'))])),
     ]
 
 
-# Arguments: scenario, seed, campaign file, output folder, gui, halt_on_alarm.
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('scenario', default_value='smoke'),

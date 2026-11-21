@@ -1,10 +1,3 @@
-// =============================================================================
-//  test_tracking_core.cpp - controller behaviour
-// -----------------------------------------------------------------------------
-//  State machine, payload gravity, halt and resume, clamping, deadlines, closed-loop
-//  tracking on a Pinocchio plant, no allocation, measurement windows and the tick clock.
-// =============================================================================
-
 #include <gtest/gtest.h>
 
 #include <atomic>
@@ -70,7 +63,6 @@ void operator delete[](void* p, std::align_val_t) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t, std::align_val_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t, std::align_val_t) noexcept { std::free(p); }
 
-// Before the first reference: hold and report halted.
 TEST(TrackingCore, HoldsAndReportsHaltedUntilTheFirstReference) {
   RobotModel m = iiwaModel();
   RobotModel g = iiwaModel();
@@ -85,7 +77,6 @@ TEST(TrackingCore, HoldsAndReportsHaltedUntilTheFirstReference) {
   EXPECT_LT((out.torque - expected).norm(), 1e-9);
 }
 
-// Blend in, then track with exactly the shared law.
 TEST(TrackingCore, FirstReferenceIsBlendedInThenTrackedWithTheSharedLaw) {
   RobotModel m = iiwaModel();
   RobotModel g = iiwaModel();
@@ -115,7 +106,6 @@ TEST(TrackingCore, FirstReferenceIsBlendedInThenTrackedWithTheSharedLaw) {
   EXPECT_LT((done.torque - expected).norm(), 1e-9);
 }
 
-// Payload context changes gravity compensation.
 TEST(TrackingCore, PayloadContextSwitchesTheGravityFeedforward) {
   RobotModel m = iiwaModel();
   RobotModel loaded = iiwaModel();
@@ -152,7 +142,6 @@ TEST(TrackingCore, PayloadContextSwitchesTheGravityFeedforward) {
   EXPECT_GT((loaded.gravity(q) - bare.gravity(q)).norm(), 5.0);
 }
 
-// Alarm halts only when halt_on_alarm is on.
 TEST(TrackingCore, AlarmHaltsAtTheMeasuredPositionOnlyWhenEnabled) {
   for (const bool enabled : {false, true}) {
     RobotModel m = iiwaModel();
@@ -180,7 +169,6 @@ TEST(TrackingCore, AlarmHaltsAtTheMeasuredPositionOnlyWhenEnabled) {
   }
 }
 
-// Resume is smooth, not a jump.
 TEST(TrackingCore, ClearedAlarmResumesWithABlendFromTheHoldPosition) {
   RobotModel m = iiwaModel();
   RobotModel g = iiwaModel();
@@ -205,7 +193,6 @@ TEST(TrackingCore, ClearedAlarmResumesWithABlendFromTheHoldPosition) {
   EXPECT_EQ(core.update(0.53, 0.001, q, Vec7::Zero(), false).state, TrackingState::kTracking);
 }
 
-// A stopped stream makes the arm hold.
 TEST(TrackingCore, StaleReferenceHoldsUntilAFreshSampleArrives) {
   RobotModel m = iiwaModel();
   TrackingConfig c;
@@ -225,7 +212,6 @@ TEST(TrackingCore, StaleReferenceHoldsUntilAFreshSampleArrives) {
   EXPECT_EQ(core.update(0.25, 0.001, moved, Vec7::Zero(), false).state, TrackingState::kTracking);
 }
 
-// Torques never exceed the limits.
 TEST(TrackingCore, TorqueIsClampedToTheEffortLimits) {
   RobotModel m = iiwaModel();
   TrackingConfig c;
@@ -238,7 +224,6 @@ TEST(TrackingCore, TorqueIsClampedToTheEffortLimits) {
   }
 }
 
-// Late updates are counted.
 TEST(TrackingCore, CountsOverrunsAgainstTheNominalPeriod) {
   RobotModel m = iiwaModel();
   TrackingCore core(m, TrackingConfig{});
@@ -249,7 +234,6 @@ TEST(TrackingCore, CountsOverrunsAgainstTheNominalPeriod) {
   EXPECT_EQ(core.overruns(), 1);
 }
 
-// Real tracking: error under 0.02 rad with friction and noise.
 TEST(TrackingCore, TracksASinusoidOnAPinocchioPlantWithFrictionAndEncoderNoise) {
   RobotModel plant = iiwaModel();
   RobotModel controller = iiwaModel();
@@ -280,7 +264,6 @@ TEST(TrackingCore, TracksASinusoidOnAPinocchioPlantWithFrictionAndEncoderNoise) 
   EXPECT_LT(worst, 0.02);
 }
 
-// The real-time update allocates no memory.
 TEST(TrackingCore, UpdateNeverAllocates) {
   RobotModel m = iiwaModel();
   TrackingConfig c;
@@ -305,7 +288,6 @@ TEST(TrackingCore, UpdateNeverAllocates) {
   EXPECT_EQ(g_allocations.load(), 0);
 }
 
-// Any halted tick marks its window halted (B6).
 TEST(MeasurementDecimator, PublishesEveryNthTickAndReportsHaltsAnywhereInTheWindow) {
   MeasurementDecimator d(10);
   bool window_halted = false;
@@ -319,7 +301,6 @@ TEST(MeasurementDecimator, PublishesEveryNthTickAndReportsHaltsAnywhereInTheWind
   EXPECT_FALSE(window_halted);
 }
 
-// A halt on the publish tick also affects the next window.
 TEST(MeasurementDecimator, AHaltOnThePublishTickCarriesIntoTheNextWindow) {
   MeasurementDecimator d(10);
   bool window_halted = false;
@@ -332,7 +313,6 @@ TEST(MeasurementDecimator, AHaltOnThePublishTickCarriesIntoTheNextWindow) {
   EXPECT_TRUE(window_halted);
 }
 
-// A skipped publication does not lose a halt.
 TEST(MeasurementDecimator, ADroppedPublicationDefersItsHaltFlag) {
   MeasurementDecimator d(2);
   bool window_halted = false;
@@ -346,7 +326,6 @@ TEST(MeasurementDecimator, ADroppedPublicationDefersItsHaltFlag) {
   EXPECT_TRUE(window_halted);
 }
 
-// Exact 1 ms steps even if /clock jitters (B19).
 TEST(TickClock, AdvancesOnePeriodPerUpdateWhateverTheExternalClockDoes) {
   TickClock clock(1000000);
   const std::int64_t t0 = 5003000000;
@@ -360,7 +339,6 @@ TEST(TickClock, AdvancesOnePeriodPerUpdateWhateverTheExternalClockDoes) {
   EXPECT_EQ(clock.period_ns(), 1000000);
 }
 
-// Re-activation starts a new timeline.
 TEST(TickClock, ResetAnchorsOnTheNextExternalTime) {
   TickClock clock(1000000);
   clock.next(100);

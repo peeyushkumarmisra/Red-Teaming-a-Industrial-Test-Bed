@@ -1,7 +1,3 @@
-# =============================================================================
-#  test_runs.py - run folders, bag topics and Gazebo clean-up
-# =============================================================================
-
 from datetime import datetime
 import os
 
@@ -54,7 +50,7 @@ def test_prepare_run_writes_the_run_files_and_leaves_the_bag_to_rosbag(tmp_path,
     files = prepare_run(str(tmp_path / 'runs'), SCENARIO, template, False, NOW)
     assert os.path.basename(files.directory) == '20261119-083005_step_a4_s3'
     s = load_scenario(files.scenario_file)
-    assert (s.name, s.seed, s.attacks[0].joint) == ('step_a4', 3, 3)
+    assert (s.name, s.seed, s.attacks[0].joints) == ('step_a4', 3, (3,))
     with open(files.controllers_file) as f:
         controllers = yaml.safe_load(f)
     assert controllers['reference_tracking_controller']['ros__parameters']['noise_seed'] == 3
@@ -78,12 +74,23 @@ def test_completed_run_needs_a_complete_summary_for_the_exact_scenario_and_seed(
     assert completed_run(root, 'step_a1', 2) is None
 
 
-# Nothing the evaluation needs is left out of the bag.
 def test_bag_records_the_streams_the_evaluation_needs():
     for topic in ('/plc/reference', '/robot/reference', '/robot/measurement', '/attack/truth',
                   '/ids/status', '/ids_thesis/status', '/sim/friction_truth'):
         assert topic in BAG_TOPICS
     assert '/clock' not in BAG_TOPICS
+    assert '/robot/measurement_raw' in BAG_TOPICS
+
+
+def test_covered_runs_move_the_controller_measurements_behind_the_mitm(tmp_path, template):
+    files = prepare_run(str(tmp_path / 'runs'), dict(SCENARIO, cover_torque=True), template,
+                        False, NOW)
+    with open(files.controllers_file) as f:
+        params = yaml.safe_load(f)['reference_tracking_controller']['ros__parameters']
+    assert params['measurement_topic'] == '/robot/measurement_raw'
+    assert load_scenario(files.scenario_file).cover_torque
+    plain = controllers_for_run(TEMPLATE, 1, False)
+    assert 'measurement_topic' not in plain['reference_tracking_controller']['ros__parameters']
 
 
 def fake_proc(root, processes):
@@ -95,7 +102,6 @@ def fake_proc(root, processes):
     os.makedirs(os.path.join(root, 'self'))
 
 
-# Only Gazebo servers are stopped, never other processes (B20).
 def test_gazebo_processes_finds_gz_sim_servers_only(tmp_path):
     root = str(tmp_path)
     fake_proc(root, {

@@ -1,9 +1,3 @@
-// =============================================================================
-//  test_load_controller.cpp - the plugin loads in controller_manager
-// -----------------------------------------------------------------------------
-//  Catches packaging mistakes (plugin XML, exported symbols) that unit tests cannot see.
-// =============================================================================
-
 #include <gtest/gtest.h>
 
 #include <memory>

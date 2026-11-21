@@ -1,10 +1,3 @@
-// =============================================================================
-//  test_pipeline.cpp - the IDS as a whole
-// -----------------------------------------------------------------------------
-//  Mode changes, calibrate-once, fingerprint refusal, command check, halted windows,
-//  warm-up and attribution.
-// =============================================================================
-
 #include <gtest/gtest.h>
 
 #include <fstream>
@@ -37,7 +30,6 @@ std::string urdf() {
   return ss.str();
 }
 
-// Minimal plant + controller feeding the pipeline.
 struct Cell {
   RobotModel robot = RobotModel::fromUrdfFile(ids_core::test::urdfPath());
   ModelConfig config;
@@ -93,7 +85,6 @@ Calibration calibrate(IdsPipeline& ids, Cell& cell, int samples) {
 
 }  // namespace
 
-// No decisions before calibration or arming.
 TEST(Pipeline, WaitsUntilCalibratedOrArmed) {
   IdsPipeline ids(IdsConfig{}, urdf());
   Cell cell;
@@ -101,7 +92,6 @@ TEST(Pipeline, WaitsUntilCalibratedOrArmed) {
   EXPECT_FALSE(ids.process(cell.step(ids)).valid);
 }
 
-// A saved calibration arms a new IDS instance.
 TEST(Pipeline, CalibrateOnceThenArmAFreshPipelineFromTheFile) {
   IdsConfig cfg;
   const std::string u = urdf();
@@ -127,7 +117,6 @@ TEST(Pipeline, CalibrateOnceThenArmAFreshPipelineFromTheFile) {
   EXPECT_EQ(alarms, 0);
 }
 
-// A foreign calibration is refused (fault).
 TEST(Pipeline, RefusesCalibrationFromADifferentConfiguration) {
   IdsConfig cfg;
   IdsPipeline ids(cfg, urdf());
@@ -140,7 +129,6 @@ TEST(Pipeline, RefusesCalibrationFromADifferentConfiguration) {
   EXPECT_EQ(changed.mode(), Mode::kFault);
 }
 
-// Tampered torque is flagged on the right joint.
 TEST(Pipeline, CommandCheckFlagsTamperedTorqueOnTheRightJoint) {
   IdsConfig cfg;
   IdsPipeline ids(cfg, urdf());
@@ -164,7 +152,6 @@ TEST(Pipeline, CommandCheckFlagsTamperedTorqueOnTheRightJoint) {
   EXPECT_FALSE(ids.process(cell.step(ids)).latched);
 }
 
-// Halted windows are skipped; resuming raises no alarm (B6).
 TEST(Pipeline, HaltedWindowsAreSkippedAndTrackingResumesWithoutAlarm) {
   IdsConfig cfg;
   const std::string u = urdf();
@@ -197,7 +184,6 @@ TEST(Pipeline, HaltedWindowsAreSkippedAndTrackingResumesWithoutAlarm) {
   EXPECT_GT(hidden.first, 0);
 }
 
-// No alarms during the warm-up (B23).
 TEST(Pipeline, DetectorWaitsForTheEwmaWarmUpAfterArmingAndReset) {
   IdsConfig cfg;
   IdsPipeline ids(cfg, urdf());
@@ -218,7 +204,6 @@ TEST(Pipeline, DetectorWaitsForTheEwmaWarmUpAfterArmingAndReset) {
   }
 }
 
-// A second alarm names its own joint (B23).
 TEST(Pipeline, EachNewOnsetNamesItsOwnPrimaryJoint) {
   IdsConfig cfg;
   cfg.detector.latch = false;

@@ -1,11 +1,3 @@
-// =============================================================================
-//  bench_ids_step.cpp - how long one IDS window takes
-// -----------------------------------------------------------------------------
-//  Calibrates on a synthetic cell, arms, and times process() over many windows;
-//  prints the median and tail. The budget is 10 ms per window. Run:
-//  `build/ids_core/bench_ids_step [windows]`.
-// =============================================================================
-
 #include <algorithm>
 #include <chrono>
 #include <cstdio>

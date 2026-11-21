@@ -1,9 +1,3 @@
-// =============================================================================
-//  types.hpp - fixed-size vectors for a 7-joint arm
-// -----------------------------------------------------------------------------
-//  Fixed-size Eigen types (no heap allocation), shared by the controller and the IDS.
-// =============================================================================
-
 #pragma once
 
 #include <Eigen/Core>

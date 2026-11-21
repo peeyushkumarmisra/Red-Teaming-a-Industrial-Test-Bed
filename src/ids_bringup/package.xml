@@ -1,17 +1,8 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
-<!--
-  =============================================================================
-   ids_bringup - launch files, runs and the experiment campaign
-  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   Starts the simulated cell, records each run, checks that the run was healthy, and
-   runs a whole campaign of scenarios unattended.
-  =============================================================================
--->
-
 <package format="3">
   <name>ids_bringup</name>
-  <version>1.2.0</version>
+  <version>1.4.0</version>
   <description>Robot-service launch files for the simulated iiwa cell: Gazebo, controllers, bridges, payload spawn, scenario-driven experiment runs with rosbag recording, run supervision and the experiment campaign.</description>
   <maintainer email="im.pkm29@gmail.com">Piyush Mishra</maintainer>
   <license>Apache-2.0</license>

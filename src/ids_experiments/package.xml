@@ -1,19 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
-<!--
-  =============================================================================
-   ids_experiments - the cell's PLC, the attacker and the scenarios
-  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   A PLC-style planner that streams the trusted reference, a man-in-the-middle node
-   that can falsify it on the way to the robot, and the scenario format that says
-   which attack happens when.
-  =============================================================================
--->
-
 <package format="3">
   <name>ids_experiments</name>
-  <version>1.2.0</version>
-  <description>PLC-style planner with seeded IK and quintic 100 Hz streaming, dormant setpoint MitM implant with ground truth, and the scenario schema for the IDS experiments.</description>
+  <version>1.4.0</version>
+  <description>PLC-style planner with seeded IK and quintic 100 Hz streaming, dormant setpoint MitM implant (attack library, optional torque-report cover) with ground truth, and the scenario schema for the IDS experiments.</description>
   <maintainer email="im.pkm29@gmail.com">Piyush Mishra</maintainer>
   <license>Apache-2.0</license>
 
@@ -21,6 +11,7 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>ids_interfaces</exec_depend>
+  <exec_depend>ids_attacks</exec_depend>
   <exec_depend>ros_gz_interfaces</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>

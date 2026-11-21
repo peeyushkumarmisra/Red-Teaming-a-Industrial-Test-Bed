@@ -1,18 +1,8 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
-<!--
-  =============================================================================
-   ids_ros - ROS 2 node for the intrusion detection system
-  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   Wraps ids_core: listens to the trusted PLC reference and the robot's measurements,
-   publishes one status per window and a latched alarm, offers a reset service, and
-   runs the calibration.
-  =============================================================================
--->
-
 <package format="3">
   <name>ids_ros</name>
-  <version>1.2.0</version>
+  <version>1.4.0</version>
   <description>ROS 2 node for the physics-informed intrusion detection system: trusted-reference tap, sim-time processing, status, alarm, reset and calibration.</description>
   <maintainer email="im.pkm29@gmail.com">Piyush Mishra</maintainer>
   <license>Apache-2.0</license>
@@ -24,6 +14,7 @@
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
+  <depend>yaml-cpp</depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

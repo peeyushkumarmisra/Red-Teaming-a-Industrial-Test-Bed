@@ -1,13 +1,3 @@
-// =============================================================================
-//  friction_drift.cpp - Gazebo plugin that makes the joints wear
-// -----------------------------------------------------------------------------
-//  Why it matters: the IDS claims to tell wear from attacks, so the simulation must
-//  really apply wear. In v1 the wear torque never reached the joints (plugin order).
-//  Here, every physics step: friction torque = -b(t) * joint velocity, added to the
-//  controller's torque command, after gz_ros2_control has written it (priority 100).
-//  Ground truth on /sim/friction_truth (100 Hz): 7 coefficients, then 7 applied torques.
-// =============================================================================
-
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -36,11 +26,9 @@ class FrictionDrift : public gz::sim::System,
                       public gz::sim::ISystemPreUpdate {
  public:
 #ifdef IIWA_SIM_HAS_SYSTEM_PRIORITY
-  // Run after gz_ros2_control (priority 0) in every step (B14).
   gz::sim::System::PriorityType ConfigurePriority() override { return 100; }
 #endif
 
-  // Read the profile from the plugin's SDF (generated from friction.yaml by xacro).
   void Configure(const gz::sim::Entity& entity, const std::shared_ptr<const sdf::Element>& sdf,
                  gz::sim::EntityComponentManager& ecm, gz::sim::EventManager&) override {
     const gz::sim::Model model(entity);
@@ -69,7 +57,6 @@ class FrictionDrift : public gz::sim::System,
       channels.push_back(c);
       joints_.push_back(joint);
       names_.push_back(name);
-      // Ask the physics engine to fill in joint velocities.
       if (!ecm.Component<gz::sim::components::JointVelocity>(joint)) {
         ecm.CreateComponent(joint, gz::sim::components::JointVelocity());
       }
@@ -84,7 +71,6 @@ class FrictionDrift : public gz::sim::System,
     }
   }
 
-  // Every physics step (1 ms).
   void PreUpdate(const gz::sim::UpdateInfo& info, gz::sim::EntityComponentManager& ecm) override {
     if (info.paused || joints_.empty()) {
       return;
@@ -94,9 +80,6 @@ class FrictionDrift : public gz::sim::System,
       const auto* velocity = ecm.Component<gz::sim::components::JointVelocity>(joints_[i]);
       const double v = velocity && !velocity->Data().empty() ? velocity->Data()[0] : 0.0;
       auto* command = ecm.Component<gz::sim::components::JointForceCmd>(joints_[i]);
-      // No torque command yet (controller not active): add nothing and never create one.
-      // In gz-sim 8 any force command disables the velocity hold that keeps the arm up
-      // before the controller starts; creating one made the arm collapse (B21).
       if (command == nullptr || command->Data().empty()) {
         torques_[i] = 0.0;
         continue;
@@ -106,7 +89,6 @@ class FrictionDrift : public gz::sim::System,
       ecm.SetChanged(joints_[i], gz::sim::components::JointForceCmd::typeId,
                      gz::sim::ComponentState::PeriodicChange);
     }
-    // Publish the ground truth used to evaluate the IDS's friction estimate.
     if (truth_period_ > 0.0 && t + 1e-9 >= next_truth_) {
       next_truth_ = t + truth_period_;
       gz::msgs::Float_V msg;

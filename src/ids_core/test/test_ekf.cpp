@@ -1,10 +1,3 @@
-// =============================================================================
-//  test_ekf.cpp - the Kalman filter behaves
-// -----------------------------------------------------------------------------
-//  Disturbance on the right joint, friction learning, gating, rollback, re-sync and the
-//  refinement step.
-// =============================================================================
-
 #include <gtest/gtest.h>
 
 #include <random>
@@ -28,7 +21,6 @@ using iiwa_control_law::Vec7;
 
 namespace {
 
-// A small plant + model pair for filter tests.
 struct Bench {
   RobotModel truth_robot = RobotModel::fromUrdfFile(ids_core::test::urdfPath());
   RobotModel ids_robot = RobotModel::fromUrdfFile(ids_core::test::urdfPath());
@@ -65,7 +57,6 @@ struct Bench {
 
 }  // namespace
 
-// With a perfect model the filter sees nothing.
 TEST(Ekf, NoiseFreeNominalHasNearZeroInnovation) {
   Bench b;
   Ekf ekf(b.ids_model, EkfConfig{}, EstimatorMode::kThesis);
@@ -81,7 +72,6 @@ TEST(Ekf, NoiseFreeNominalHasNearZeroInnovation) {
   EXPECT_LT(max_d, 1e-3);
 }
 
-// A 12 N*m disturbance appears on its joint and barely leaks elsewhere (B1).
 TEST(Ekf, ConstantDisturbanceIsRecoveredOnItsJoint) {
   Bench b;
   Ekf ekf(b.ids_model, EkfConfig{}, EstimatorMode::kThesis);
@@ -101,7 +91,6 @@ TEST(Ekf, ConstantDisturbanceIsRecoveredOnItsJoint) {
   EXPECT_LT(others.cwiseAbs().maxCoeff(), 1.0);
 }
 
-// Extended mode learns the true friction.
 TEST(Ekf, ExtendedModeLearnsViscousFriction) {
   Bench b;
   EkfConfig cfg;
@@ -123,7 +112,6 @@ TEST(Ekf, ExtendedModeLearnsViscousFriction) {
   }
 }
 
-// Thesis mode never learns friction (as in the dissertation).
 TEST(Ekf, ThesisModeKeepsFrictionAtZero) {
   Bench b;
   Ekf ekf(b.ids_model, EkfConfig{}, EstimatorMode::kThesis);
@@ -137,7 +125,6 @@ TEST(Ekf, ThesisModeKeepsFrictionAtZero) {
   EXPECT_DOUBLE_EQ(ekf.state().b.norm(), 0.0);
 }
 
-// The covariance stays valid over many steps.
 TEST(Ekf, CovarianceStaysSymmetricPositiveDefinite) {
   Bench b;
   b.vel_noise = 1e-3;
@@ -154,7 +141,6 @@ TEST(Ekf, CovarianceStaysSymmetricPositiveDefinite) {
   EXPECT_GT(es.eigenvalues().minCoeff(), 0.0);
 }
 
-// A surprising window does not change friction.
 TEST(Ekf, NisGateBlocksFrictionUpdatesOnOutliers) {
   Bench b;
   Ekf ekf(b.ids_model, EkfConfig{}, EstimatorMode::kExtended);
@@ -166,7 +152,6 @@ TEST(Ekf, NisGateBlocksFrictionUpdatesOnOutliers) {
   EXPECT_FALSE(out.friction_updated);
 }
 
-// Rollback restores the earlier estimate exactly.
 TEST(Ekf, RollbackRestoresEarlierFriction) {
   Bench b;
   EkfConfig cfg;
@@ -185,7 +170,6 @@ TEST(Ekf, RollbackRestoresEarlierFriction) {
   EXPECT_LT((ekf.state().b - at_100).norm(), 1e-12);
 }
 
-// Re-sync keeps what was learned about friction.
 TEST(Ekf, ResyncMovesTheStateButKeepsFrictionAndItsCovariance) {
   Bench b;
   EkfConfig cfg;
@@ -211,7 +195,6 @@ TEST(Ekf, ResyncMovesTheStateButKeepsFrictionAndItsCovariance) {
   EXPECT_DOUBLE_EQ(ekf.covariance()(0, 0), cfg.p0_position);
 }
 
-// Refinement removes cross-talk from large, fast disturbances (B3).
 TEST(Ekf, RefinementRemovesSecondOrderCrossTalkFromFastTransients) {
   auto leak = [](int iterations) {
     Bench b;

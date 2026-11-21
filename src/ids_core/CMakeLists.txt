@@ -1,14 +1,5 @@
-# =============================================================================
-#  ids_core/CMakeLists.txt - the detector as a plain C++ library
-# -----------------------------------------------------------------------------
-#  Builds the whole intrusion detection algorithm as one library with no ROS
-#  dependency. Why it matters: the algorithm can be unit-tested, benchmarked and
-#  replayed offline on recordings without a robot, a simulator or ROS running.
-#  The ROS node (ids_ros) is a thin wrapper around it.
-# =============================================================================
-
 cmake_minimum_required(VERSION 3.16)
-project(ids_core VERSION 1.2.0 LANGUAGES CXX)
+project(ids_core VERSION 1.4.0 LANGUAGES CXX)
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 20)
@@ -19,7 +10,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 add_compile_options(-Wall -Wextra -Wpedantic)
 
-# ament is optional: the library and its tests also build with plain CMake.
 find_package(ament_cmake QUIET)
 if(NOT ament_cmake_FOUND)
   include(CTest)
@@ -29,8 +19,6 @@ find_package(Eigen3 REQUIRED)
 find_package(pinocchio REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
-# The detection pipeline, in the order data flows through it:
-# model -> filter -> averages -> detector, plus limits, fingerprint and calibration.
 add_library(${PROJECT_NAME} SHARED
   src/closed_loop_model.cpp
   src/ekf.cpp
@@ -40,6 +28,7 @@ add_library(${PROJECT_NAME} SHARED
   src/sha256.cpp
   src/calibration.cpp
   src/ids_pipeline.cpp
+  src/replay.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -57,7 +46,6 @@ install(TARGETS ${PROJECT_NAME}
   RUNTIME DESTINATION bin
 )
 
-# One test program per building block, plus end-to-end scenarios and a real-time check.
 set(IDS_CORE_TESTS
   test_robot_model
   test_closed_loop_model
@@ -68,6 +56,7 @@ set(IDS_CORE_TESTS
   test_pipeline
   test_scenarios
   test_realtime
+  test_replay
 )
 
 if(BUILD_TESTING)
@@ -78,7 +67,6 @@ if(BUILD_TESTING)
   endif()
   foreach(t ${IDS_CORE_TESTS})
     if(ament_cmake_FOUND)
-      # Scenario tests simulate minutes of robot motion, hence the long timeout.
       ament_add_gtest(${t} test/${t}.cpp TIMEOUT 600)
     else()
       add_executable(${t} test/${t}.cpp)
@@ -90,7 +78,6 @@ if(BUILD_TESTING)
     target_compile_definitions(${t} PRIVATE
       IDS_CORE_TEST_URDF="${CMAKE_CURRENT_SOURCE_DIR}/test/data/iiwa14.urdf")
   endforeach()
-  # Benchmark: time per 10 ms window (the real-time budget).
   add_executable(bench_ids_step bench/bench_ids_step.cpp)
   target_link_libraries(bench_ids_step ${PROJECT_NAME})
   target_include_directories(bench_ids_step PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/test)

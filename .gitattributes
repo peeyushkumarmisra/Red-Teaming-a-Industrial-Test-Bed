@@ -1,42 +1,38 @@
-# =============================================================================
-#  .gitattributes - how Git stores each kind of file
-# -----------------------------------------------------------------------------
-#  The testbed is edited on Windows but builds and runs in Linux containers.
-#  These rules make every checkout identical on both, so a result (a run, a
-#  calibration, a graph) can always be traced back to the exact files of the
-#  tagged commit that produced it.
-# =============================================================================
+# ==================================================================================================
+# .gitattributes - This states how Git stores each kind of file 
+# --------------------------------------------------------------------------------------------------
+# This project was edited on windows but was build and run in Linux containers. So these rules make
+# every checkout identical on both platforms. This is important for reproducible builds and also to
+# track back to the exact files of the tagged comit that produced it.
+# ==================================================================================================
 
-# -----------------------------------------------------------------------------
-#  Text files: always LF line endings
-# -----------------------------------------------------------------------------
-# Git decides which files are text, stores them with LF, and also checks them
-# out with LF on Windows. Without this, Git reports "changes" in files nobody
-# edited, and a Windows line ending (CRLF) can break the Linux side.
+# --------------------------------------------------------------------------------------------------
+# Test files: always LF line endings
+# --------------------------------------------------------------------------------------------------
+# Git decides which files are text, stores them with LF, and also checks them out with LF on Windows.
+# Without this, Git reports "changes" in files nobody edited, and a Windows line ending (CRLF) can 
+# break the Linux side.
 * text=auto eol=lf
 
-# Shell scripts run inside the Linux containers (for example the container
-# entrypoint docker/entrypoint.sh). A CRLF ending makes bash fail to start
-# them, so they are always text with LF, never left to Git's guess.
+# Shell scripts run inside the Linux container (for example the container entrypoint 
+# docker/entrypoint.sh). A CRLF ending makes bash fail to start them, so they are always text with
+# LF, never left to Git's guess.
 *.sh text eol=lf
 
-# -----------------------------------------------------------------------------
-#  Robot meshes (KUKA LBR iiwa 14, copied unchanged from v1.0.0)
-# -----------------------------------------------------------------------------
-# binary            : store the file exactly as it is: no line-ending changes,
-#                     no line-by-line diff or merge. This already went wrong
-#                     once: six .dae files were converted to CRLF on Windows
-#                     and had to be restored before they matched v1.0.0.
-# linguist-vendored : third-party files; GitHub leaves them out of the
-#                     "languages used" bar.
+# --------------------------------------------------------------------------------------------------
+# Robot Meshes (copied directly from original v1.0 release)
+# --------------------------------------------------------------------------------------------------
+# binary            : store the file exactly as it is: no line-ending changes, no line-by-line
+#                     diff or merge. This already went wrong once: six .dae files were converted
+#                     to CRLF on Windows and had to be restored before they matched v1.0.0.
+# linguist-vendored : third-party files; GitHub leaves them out of the "languages used" bar.
 *.dae binary linguist-vendored
 *.stl binary linguist-vendored
 src/iiwa_sim/meshes/** linguist-vendored
 
-# -----------------------------------------------------------------------------
-#  Images (result graphs under docs/)
-# -----------------------------------------------------------------------------
-# Graphs are stored byte for byte, so they can never be damaged by a
-# line-ending conversion.
+# --------------------------------------------------------------------------------------------------
+# Images (Resulting graphs are in Docs) {Stored in yte for byte, to avoid line-ending conversion}
+# --------------------------------------------------------------------------------------------------
 *.png binary
 *.gif binary
+*.jpg binary

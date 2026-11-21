@@ -1,19 +1,10 @@
-# =============================================================================
-#  payload.py - the workpiece the robot carries
-# -----------------------------------------------------------------------------
-#  A 0.1 m cube of the given mass (5 kg in the experiments). Its inertia must match
-#  the payload the controller and the IDS assume (iiwa_control_law defaultPayload).
-# =============================================================================
-
 CUBE_SIZE = 0.1
 
 
-# Solid cube: I = m * s^2 / 6 about each axis.
 def cube_inertia(mass, size=CUBE_SIZE):
     return mass * 2.0 * size * size / 12.0
 
 
-# SDF model spawned into Gazebo once at start-up.
 def payload_sdf(mass, name='payload', link='cube_link', size=CUBE_SIZE):
     inertia = cube_inertia(mass, size)
     box = f"<geometry><box><size>{size} {size} {size}</size></box></geometry>"

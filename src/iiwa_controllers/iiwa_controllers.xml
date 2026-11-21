@@ -1,11 +1,3 @@
-<!--
-  =============================================================================
-   iiwa_controllers.xml - pluginlib description
-  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   Lets controller_manager load iiwa_controllers/ReferenceTrackingController.
-  =============================================================================
--->
-
 <library path="iiwa_controllers">
   <class name="iiwa_controllers/ReferenceTrackingController"
          type="iiwa_controllers::ReferenceTrackingController"

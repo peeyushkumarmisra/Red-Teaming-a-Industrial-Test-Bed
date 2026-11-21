@@ -1,12 +1,3 @@
-// =============================================================================
-//  ids_pipeline.hpp - the complete IDS for one robot
-// -----------------------------------------------------------------------------
-//  Feed it reference samples (addReference) and one measurement per 10 ms window
-//  (process). It returns one decision per window. Modes: waiting -> calibrating ->
-//  (save file) -> armed; a calibration with the wrong fingerprint gives fault.
-//  After construction, process() never allocates memory (checked by test_realtime).
-// =============================================================================
-
 #pragma once
 
 #include <cstdint>
@@ -24,10 +15,8 @@
 
 namespace ids_core {
 
-// Same numbering as IdsStatus.msg.
 enum class Mode { kWaiting = 0, kCalibrating = 1, kArmed = 2, kFault = 3 };
 
-// One window from the controller (see JointMeasurement.msg).
 struct Measurement {
   double stamp = 0.0;
   Vec7 q = Vec7::Zero();
@@ -37,7 +26,6 @@ struct Measurement {
   bool halted = false;
 };
 
-// One decision (see IdsStatus.msg).
 struct IdsOutput {
   Mode mode = Mode::kWaiting;
   bool valid = false;
@@ -67,10 +55,7 @@ class IdsPipeline {
 
   void startCalibration();
   Calibration finishCalibration();
-  // Start detecting with a stored calibration; throws (and enters fault) on a wrong
-  // fingerprint.
   void arm(const Calibration& calibration);
-  // Clear the alarm and the latch; detection restarts after the warm-up.
   void resetAlarm();
 
   void addReference(const iiwa_control_law::ReferenceSample& sample);
@@ -101,13 +86,11 @@ class IdsPipeline {
   Vec7 last_tau_ = Vec7::Zero();
   int context_ = -1;
   double context_mass_ = 0.0;
-  // Time of the last trusted payload change (for the context guard).
   double context_change_ = -1e9;
   bool use_slow_ = false;
   bool use_command_ = false;
   int primary_joint_ = -1;
   int detector_windows_ = 0;
-  // Windows to wait after arming or reset before alarms are allowed (2 * tau_slow).
   int detector_warmup_ = 0;
 };
 

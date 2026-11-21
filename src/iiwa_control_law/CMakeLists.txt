@@ -1,11 +1,3 @@
-# =============================================================================
-#  iiwa_control_law/CMakeLists.txt - shared model and control law library
-# -----------------------------------------------------------------------------
-#  Builds one shared library used by both the tracking controller and the IDS.
-#  It also builds with plain CMake (no ament), so its unit tests run anywhere,
-#  including outside ROS.
-# =============================================================================
-
 cmake_minimum_required(VERSION 3.16)
 project(iiwa_control_law VERSION 1.2.0 LANGUAGES CXX)
 
@@ -18,7 +10,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 add_compile_options(-Wall -Wextra -Wpedantic)
 
-# ament is optional: without ROS, fall back to plain CMake and CTest.
 find_package(ament_cmake QUIET)
 if(NOT ament_cmake_FOUND)
   include(CTest)
@@ -26,7 +17,6 @@ endif()
 find_package(Eigen3 REQUIRED)
 find_package(pinocchio REQUIRED)
 
-# Only the robot model needs compiling; the control law is header-only.
 add_library(${PROJECT_NAME} SHARED src/robot_model.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -43,7 +33,6 @@ install(TARGETS ${PROJECT_NAME}
   RUNTIME DESTINATION bin
 )
 
-# Unit tests: ament_cmake_gtest inside ROS, plain GTest outside it.
 if(BUILD_TESTING)
   if(ament_cmake_FOUND)
     find_package(ament_cmake_gtest REQUIRED)
@@ -57,7 +46,6 @@ if(BUILD_TESTING)
   endif()
 endif()
 
-# Export the library so other packages can find it, with or without ament.
 if(ament_cmake_FOUND)
   ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
   ament_export_dependencies(Eigen3 pinocchio)

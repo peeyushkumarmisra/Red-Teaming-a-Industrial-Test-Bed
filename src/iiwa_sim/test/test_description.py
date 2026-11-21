@@ -1,12 +1,3 @@
-# =============================================================================
-#  test_description.py - the simulated robot is the robot the IDS models
-# -----------------------------------------------------------------------------
-#  Expands the xacro and checks: 7 revolute joints in order; masses, gravity and mass
-#  matrix at home equal the IDS's test model; the ros2_control block; plugin order;
-#  the gripper; every friction profile; meshes resolve (and are not Git LFS pointer
-#  files); no flange collision.
-# =============================================================================
-
 import os
 import xml.etree.ElementTree as ET
 
@@ -21,14 +12,12 @@ SHARE = get_package_share_directory('iiwa_sim')
 XACRO = os.path.join(SHARE, 'urdf', 'iiwa_sim.urdf.xacro')
 JOINTS = [f'joint_a{i}' for i in range(1, 8)]
 HOME = np.array([0.0, 0.5, 0.0, -1.2, 0.0, 0.8, 0.0])
-# Reference values from the IDS's own model (ids_core/test/data/iiwa14.urdf).
 GRAVITY_AT_HOME = [0.0, -26.629499422, 1.447069664, 10.876298205, 0.357804365, -0.054550086, 0.0]
 MASS_DIAGONAL_AT_HOME = [1.305024634, 2.082632482, 0.436775208, 0.426462283, 0.04069311,
                          0.023771717, 0.01]
 LINK_MASSES = [4.0, 4.0, 3.0, 2.7, 1.7, 1.8, 0.3 / 0.308 * 0.44]
 
 
-# Run xacro with the given arguments and return the URDF text.
 def expand(**mappings):
     return xacro.process_file(XACRO, mappings=mappings).toxml()
 
@@ -55,14 +44,12 @@ def root(urdf):
     return ET.fromstring(urdf)
 
 
-# The IDS needs exactly joint_a1..a7.
 def test_pinocchio_sees_seven_revolute_joints_in_order(urdf):
     model = pin.buildModelFromXML(urdf)
     assert model.nq == 7
     assert list(model.names)[1:] == JOINTS
 
 
-# Same masses, gravity and inertia as the IDS model.
 def test_dynamics_match_the_ids_reference_model(urdf):
     model = pin.buildModelFromXML(urdf)
     data = model.createData()
@@ -75,7 +62,6 @@ def test_dynamics_match_the_ids_reference_model(urdf):
     np.testing.assert_allclose(np.diag(m), MASS_DIAGONAL_AT_HOME, atol=1e-8)
 
 
-# Torque control, starting at home.
 def test_ros2_control_block_commands_effort_and_starts_at_home(root):
     block = root.find('ros2_control')
     assert block.find('hardware/plugin').text.strip() == 'gz_ros2_control/GazeboSimSystem'
@@ -90,7 +76,6 @@ def test_ros2_control_block_commands_effort_and_starts_at_home(root):
         assert float(initial.text) == pytest.approx(q0)
 
 
-# Wear is applied after the controller (v1's bug).
 def test_friction_plugin_is_declared_after_gz_ros2_control(root):
     names = [p.get('name') for p in root.iter('plugin')]
     assert names.index('gz_ros2_control::GazeboSimROS2ControlPlugin') < names.index(
@@ -99,7 +84,6 @@ def test_friction_plugin_is_declared_after_gz_ros2_control(root):
     assert controllers.find('parameters').text.endswith('config/controllers.yaml')
 
 
-# The gripper attaches the payload to the flange.
 def test_detachable_joint_holds_the_payload_on_link_7(root):
     p = plugin(root, 'gz::sim::systems::DetachableJoint')
     assert p.find('parent_link').text == 'link_7'
@@ -110,7 +94,6 @@ def test_detachable_joint_holds_the_payload_on_link_7(root):
     assert p.find('output_topic').text == '/gripper/state'
 
 
-# Each friction profile reaches the plugin.
 @pytest.mark.parametrize('profile', ['none', 'nominal', 'wear', 'thesis'])
 def test_friction_profiles_reach_the_plugin(profile):
     expected = load_yaml('friction.yaml')[profile]
@@ -124,7 +107,6 @@ def test_friction_profiles_reach_the_plugin(profile):
         assert float(j.find('max').text) == pytest.approx(expected['max'][i])
 
 
-# Meshes exist and are real files, not LFS pointers.
 def test_meshes_resolve_to_installed_files(root):
     meshes = [m.get('filename') for m in root.iter('mesh')]
     assert len(meshes) == 15
@@ -135,7 +117,6 @@ def test_meshes_resolve_to_installed_files(root):
         assert os.path.getsize(path) > 1000, filename
 
 
-# The held part cannot collide with the flange.
 def test_flange_has_no_collision_geometry(root):
     link = root.find("link[@name='link_7']")
     assert link.find('collision') is None

@@ -1,9 +1,3 @@
-# =============================================================================
-#  test_kinematics.py - IK on the real robot description
-# -----------------------------------------------------------------------------
-#  Expands the iiwa_sim xacro, so it needs that package installed.
-# =============================================================================
-
 import os
 
 from ament_index_python.packages import get_package_share_directory
@@ -22,12 +16,10 @@ def kinematics():
     return Kinematics(xacro.process_file(path).toxml())
 
 
-# ikpy and Pinocchio agree on where the tool is.
 def test_forward_kinematics_matches_the_ids_model_at_home(kinematics):
     np.testing.assert_allclose(kinematics.forward(HOME)[:3, 3], [0.6901, 0.0, 0.5535], atol=1e-3)
 
 
-# Every station pose is reached within 1 mm, tool down.
 def test_station_waypoints_are_reached_with_the_tool_pointing_down(kinematics):
     targets = (station_targets('a', (-0.5, 0.0), 0.25, 0.10, 0.11)
                + station_targets('b', (0.0, 0.5), 0.25, 0.10, 0.11))
@@ -38,7 +30,6 @@ def test_station_waypoints_are_reached_with_the_tool_pointing_down(kinematics):
         assert frame[2, 2] == pytest.approx(-1.0, abs=1e-3)
 
 
-# No wrist flips between poses (repeatable motion).
 def test_seeded_chain_keeps_the_wrist_continuous(kinematics):
     targets = (station_targets('a', (-0.5, 0.0), 0.25, 0.10, 0.11)
                + station_targets('b', (0.0, 0.5), 0.25, 0.10, 0.11))

@@ -1,10 +1,10 @@
-# =============================================================================
-#  .dockerignore - what never goes into an image build
-# -----------------------------------------------------------------------------
-#  Build output, Git history, recorded runs and caches stay out of the Docker build
-#  context. Images then build fast and never bake old results or local junk into the
-#  environment that produces new results.
-# =============================================================================
+# ==================================================================================================
+# .dockerignore - what is never copied into the docker image
+# --------------------------------------------------------------------------------------------------
+# Build output, Git history, recorded runs and caches stay out of the Docker build context. Images
+# then build fast and never bake old results or local junk into the environment that produces new 
+# results.
+# ==================================================================================================
 
 .git
 build
@@ -12,4 +12,4 @@ install
 log
 data
 .venv
-**/__pycache__
+**?__pycache__

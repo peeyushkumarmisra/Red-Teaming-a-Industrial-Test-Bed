@@ -1,12 +1,5 @@
-# =============================================================================
-#  ids_ros/CMakeLists.txt - the IDS as a ROS 2 node
-# -----------------------------------------------------------------------------
-#  The parameter handling is a small ROS-free library (tested anywhere); the node
-#  itself is built only when ROS 2 (ament) is present.
-# =============================================================================
-
 cmake_minimum_required(VERSION 3.16)
-project(ids_ros VERSION 1.2.0 LANGUAGES CXX)
+project(ids_ros VERSION 1.4.0 LANGUAGES CXX)
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 20)
@@ -22,14 +15,17 @@ if(NOT ament_cmake_FOUND)
   include(CTest)
 endif()
 find_package(ids_core REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
-# ROS parameters <-> IdsConfig, kept free of ROS so its tests run without ROS.
-add_library(ids_ros_parameters STATIC src/parameters.cpp)
+add_library(ids_ros_parameters STATIC src/parameters.cpp src/parameter_file.cpp)
 set_target_properties(ids_ros_parameters PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(ids_ros_parameters PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(ids_ros_parameters PUBLIC ids_core::ids_core)
+target_link_libraries(ids_ros_parameters PRIVATE yaml-cpp::yaml-cpp)
 
-# The node: subscribes to the trusted reference and the measurements, publishes decisions.
+add_executable(ids_replay src/replay_main.cpp)
+target_link_libraries(ids_replay ids_ros_parameters)
+
 if(ament_cmake_FOUND)
   find_package(rclcpp REQUIRED)
   find_package(std_msgs REQUIRED)
@@ -38,11 +34,11 @@ if(ament_cmake_FOUND)
   add_executable(ids_node src/ids_node.cpp)
   target_link_libraries(ids_node ids_ros_parameters)
   ament_target_dependencies(ids_node rclcpp std_msgs std_srvs ids_interfaces)
-  install(TARGETS ids_node DESTINATION lib/${PROJECT_NAME})
+  install(TARGETS ids_node ids_replay DESTINATION lib/${PROJECT_NAME})
   install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 endif()
 
-set(IDS_ROS_TESTS test_parameters test_conversions)
+set(IDS_ROS_TESTS test_parameters test_conversions test_parameter_file)
 
 if(BUILD_TESTING)
   if(ament_cmake_FOUND)
@@ -59,9 +55,13 @@ if(BUILD_TESTING)
       add_test(NAME ${t} COMMAND ${t})
     endif()
     target_link_libraries(${t} ids_ros_parameters)
+    target_compile_definitions(${t} PRIVATE
+      IDS_ROS_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
   endforeach()
 endif()
 
 if(ament_cmake_FOUND)
   ament_package()
+else()
+  install(TARGETS ids_replay DESTINATION bin)
 endif()

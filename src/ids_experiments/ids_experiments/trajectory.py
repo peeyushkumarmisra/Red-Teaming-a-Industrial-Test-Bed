@@ -1,19 +1,9 @@
-# =============================================================================
-#  trajectory.py - smooth point-to-point motion
-# -----------------------------------------------------------------------------
-#  Quintic (5th-order) profiles start and end with zero velocity and acceleration, like
-#  an industrial PLC move. Smooth references keep the robot inside its torque limits,
-#  so any unusual torque comes from an attack, not from a jerky program.
-# =============================================================================
-
 import numpy as np
 
-# Peak speed and acceleration of a unit quintic, used to size move durations.
 QUINTIC_PEAK_VELOCITY = 1.875
 QUINTIC_PEAK_ACCELERATION = 10.0 / np.sqrt(3.0)
 
 
-# Position, velocity and acceleration at time t of a move from q0 to q1.
 def quintic(q0, q1, duration, t):
     q0 = np.asarray(q0, dtype=float)
     q1 = np.asarray(q1, dtype=float)
@@ -27,7 +17,6 @@ def quintic(q0, q1, duration, t):
     return position, velocity, acceleration
 
 
-# Shortest duration that respects every joint's velocity and acceleration limit.
 def move_duration(q0, q1, max_velocity, max_acceleration, minimum=0.0):
     d = np.abs(np.asarray(q1, dtype=float) - np.asarray(q0, dtype=float))
     by_velocity = QUINTIC_PEAK_VELOCITY * d / np.asarray(max_velocity, dtype=float)

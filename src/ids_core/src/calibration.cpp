@@ -1,15 +1,3 @@
-// =============================================================================
-//  calibration.cpp - fingerprint, file format and calibration maths
-// -----------------------------------------------------------------------------
-//  Fingerprint = SHA-256(model signature | configuration signature).
-//  The model signature is built from the robot model as Pinocchio parsed it, not from
-//  the URDF text, so comments, formatting and simulator-only tags (friction profile,
-//  Gazebo plugins) do not change it, while any change to inertia, axes, placement or
-//  limits does (B8).
-//  finalize(): per-joint mean and standard deviation, the spread of each statistic on
-//  the calibration data (scale), and the limits from the false-alarm budget.
-// =============================================================================
-
 #include "ids_core/calibration.hpp"
 
 #include <algorithm>
@@ -57,7 +45,6 @@ bool commandEnabled(const IdsConfig& c) {
 
 }  // namespace
 
-// Walk the joints of the parsed model and print every number that affects dynamics.
 std::string modelSignature(const std::string& urdf, const std::string& tip_joint) {
   const iiwa_control_law::RobotModel robot =
       iiwa_control_law::RobotModel::fromUrdfString(urdf, tip_joint);
@@ -93,7 +80,6 @@ std::string modelSignature(const std::string& urdf, const std::string& tip_joint
   return out.str();
 }
 
-// Every setting that changes predictions, statistics or limits.
 std::string configSignature(const IdsConfig& c) {
   std::ostringstream out;
   out << std::setprecision(12);
@@ -121,7 +107,6 @@ std::string computeFingerprint(const std::string& urdf, const IdsConfig& c) {
   return sha256Hex(modelSignature(urdf, c.model.tip_joint) + '|' + configSignature(c));
 }
 
-// Plain YAML, so a calibration can be read and checked by hand.
 void saveCalibration(const Calibration& cal, const std::string& path) {
   YAML::Emitter out;
   out << YAML::BeginMap;
@@ -180,7 +165,6 @@ void CalibrationRecorder::add(const Vec7& physics, const Vec7* command) {
 
 namespace {
 
-// Mean and standard deviation per joint, never below the floor (avoids division by ~0).
 void moments(const std::vector<Vec7>& data, double floor, Vec7& mean, Vec7& stddev) {
   mean.setZero();
   stddev = Vec7::Constant(floor);
@@ -199,9 +183,6 @@ void moments(const std::vector<Vec7>& data, double floor, Vec7& mean, Vec7& stdd
   stddev = var.cwiseSqrt().cwiseMax(floor);
 }
 
-// Real data is not white noise: neighbouring windows are correlated. The scale is the
-// statistic's actual spread on calibration data (at least 1), so limits computed for
-// white noise still hold.
 void scales(const std::vector<Vec7>& data, const Vec7& mean, const Vec7& stddev,
             const IdsConfig& config, Vec7& diff_scale, Vec7& slow_scale) {
   diff_scale = Vec7::Ones();
@@ -209,7 +190,6 @@ void scales(const std::vector<Vec7>& data, const Vec7& mean, const Vec7& stddev,
   DualEwma ewma;
   const double dt = 1.0 / config.nominal_rate_hz;
   ewma.configure(dt, config.ewma.tau_fast, config.ewma.tau_slow);
-  // Skip the first 2 * tau_slow while the averages settle.
   const auto skip = static_cast<std::size_t>(2.0 * config.ewma.tau_slow / dt);
   if (data.size() <= skip + 10) {
     return;
@@ -244,7 +224,6 @@ Calibration CalibrationRecorder::finalize(const IdsConfig& config, const std::st
   scales(physics_, cal.physics_mean, cal.physics_std, config, cal.physics_scale, cal.slow_scale);
   Vec7 unused;
   scales(command_, cal.command_mean, cal.command_std, config, cal.command_scale, unused);
-  // The hourly budget is shared by every channel of every joint.
   int channels = kDof;
   if (slowEnabled(config)) channels += kDof;
   if (commandEnabled(config)) channels += kDof;
@@ -258,8 +237,6 @@ Calibration CalibrationRecorder::finalize(const IdsConfig& config, const std::st
   model.hysteresis = config.detector.hysteresis;
   model.kind = StatisticKind::kDifference;
   cal.limit = config.detector.limit_override > 0.0 ? config.detector.limit_override
-                                                    // Fixed seeds (7 and 11): the same settings
-                                                    // always give the same limits.
                                                     : selectLimit(model, target, 20.0, 7);
   model.kind = StatisticKind::kSlow;
   cal.slow_limit = config.detector.slow_limit_override > 0.0

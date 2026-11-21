@@ -1,7 +1,3 @@
-# =============================================================================
-#  test_campaign.py - the installed campaign is complete and valid
-# =============================================================================
-
 import copy
 import os
 
@@ -37,7 +33,6 @@ def campaign():
     return load_campaign(CAMPAIGN)
 
 
-# 45 runs in the documented order.
 def test_installed_campaign_runs_nominal_then_every_joint_for_step_and_ramp(campaign):
     expected = ['nominal'] + [f'step_a{j}' for j in range(1, 8)] + \
         [f'ramp_a{j}' for j in range(1, 8)]
@@ -47,7 +42,6 @@ def test_installed_campaign_runs_nominal_then_every_joint_for_step_and_ramp(camp
     assert runs[:4] == [('nominal', 1), ('nominal', 2), ('nominal', 3), ('step_a1', 1)]
 
 
-# Every run passes the MitM's own validation.
 def test_every_scenario_and_seed_is_a_valid_mitm_scenario(campaign):
     for name, entry in campaign.entries.items():
         for seed in entry['seeds']:
@@ -55,7 +49,6 @@ def test_every_scenario_and_seed_is_a_valid_mitm_scenario(campaign):
             assert s.name == name and s.seed == seed
 
 
-# Attacks start after wear has begun.
 def test_family_members_attack_their_own_joint_during_drift(campaign):
     wear_delay = sibling_config('iiwa_sim', 'friction.yaml')['wear']['delay']
     for kind in ('step', 'ramp'):
@@ -64,7 +57,7 @@ def test_family_members_attack_their_own_joint_during_drift(campaign):
             assert s.friction_profile == 'wear'
             assert len(s.attacks) == 1
             a = s.attacks[0]
-            assert (a.kind, a.joint, a.event_id) == (kind, joint - 1, 1)
+            assert (a.kind, a.joints, a.event_id) == (kind, (joint - 1,), 1)
             assert a.start > wear_delay
 
 
@@ -109,6 +102,53 @@ def test_resolve_applies_defaults_and_rejects_unknown_names():
 ])
 def test_invalid_campaigns_are_rejected_with_the_offending_name(change, message):
     data = copy.deepcopy(SMALL)
+    change(data)
+    with pytest.raises(ValueError, match=message):
+        parse_campaign(data)
+
+
+def test_installed_campaign_offers_every_attack_kind_cover_and_sweeps(campaign):
+    kinds = {}
+    for name in campaign.entries:
+        s = parse_scenario(resolve(campaign, name, 1))
+        for a in s.attacks:
+            kinds.setdefault(a.kind, name)
+    assert set(kinds) == {'step', 'ramp', 'sine', 'scaling', 'freeze', 'replay', 'delay',
+                          'noise', 'coordinated', 'drift_mimic'}
+    cover = parse_scenario(resolve(campaign, 'step_a4_cover', 1))
+    assert cover.cover_torque and cover.attacks[0].joints == (3,)
+    assert parse_scenario(resolve(campaign, 'coordinated_a2a4', 1)).attacks[0].joints == (1, 3)
+    sweep = [n for n in campaign.entries if n.startswith('step_sweep_')]
+    assert len(sweep) == 28 and 'step_sweep_a4_m0.0025' in sweep
+    assert not any(n.startswith(('step_sweep', 'ramp_sweep', 'sine', 'step_a4_cover'))
+                   for n in campaign.order)
+
+
+def test_sweeps_expand_joints_times_magnitudes_and_can_be_planned():
+    data = copy.deepcopy(SMALL)
+    data['sweeps'] = {'probe': {'duration': 40.0, 'joints': [3, 6], 'magnitudes': [0.01, 0.02],
+                                'seeds': [1, 2, 3],
+                                'attack': {'kind': 'step', 'start': 20.0, 'duration': 5.0}}}
+    c = parse_campaign(data)
+    names = ['probe_a3_m0.01', 'probe_a3_m0.02', 'probe_a6_m0.01', 'probe_a6_m0.02']
+    assert all(n in c.entries for n in names)
+    runs = plan(c, only=['probe_*'])
+    assert len(runs) == 12 and runs[0] == ('probe_a3_m0.01', 1)
+    s = parse_scenario(resolve(c, 'probe_a6_m0.02', 2))
+    assert s.attacks[0].joints == (5,) and s.attacks[0].magnitude == 0.02
+    data['campaign'].append('probe')
+    assert len(plan(parse_campaign(data))) == 6 + 12
+
+
+@pytest.mark.parametrize('change,message', [
+    (lambda d: d['sweeps']['probe'].update(magnitudes=[]), 'magnitudes'),
+    (lambda d: d['sweeps']['probe'].update(speed=1), 'unknown keys'),
+    (lambda d: d['sweeps']['probe']['attack'].update(start=39.0), 'probe_a3'),
+])
+def test_invalid_sweeps_are_rejected(change, message):
+    data = copy.deepcopy(SMALL)
+    data['sweeps'] = {'probe': {'duration': 40.0, 'joints': [3], 'magnitudes': [0.01],
+                                'attack': {'kind': 'step', 'start': 20.0, 'duration': 5.0}}}
     change(data)
     with pytest.raises(ValueError, match=message):
         parse_campaign(data)

@@ -1,25 +1,19 @@
-# =============================================================================
-#  scenario.py - the scenario file format
-# -----------------------------------------------------------------------------
-#  A scenario says what one run does: name, seed, friction profile, duration, planner
-#  settings and the attacks. Invalid scenarios are rejected with a clear message
-#  before any simulation starts (bad joint, overlapping attacks, attack after the end).
-# =============================================================================
-
 from dataclasses import dataclass, field
 import math
 
 import yaml
 
-from ids_experiments.attacks import Attack, KINDS
+from ids_attacks.library import make_attack
 
-# Must match the profiles in iiwa_sim/config/friction.yaml.
 FRICTION_PROFILES = ('none', 'nominal', 'wear', 'thesis')
 PLANNER_DEFAULTS = {'cycles': 0, 'payload_mass': 5.0}
+SCENARIO_KEYS = {'name', 'seed', 'friction_profile', 'duration', 'planner', 'attacks',
+                 'cover_torque'}
+ATTACK_KEYS = {'id', 'kind', 'joint', 'joints', 'magnitude', 'magnitudes', 'start', 'duration',
+               'frequency', 'lag'}
 
 
 @dataclass(frozen=True)
-# A validated scenario.
 class Scenario:
     name: str
     seed: int
@@ -27,6 +21,7 @@ class Scenario:
     duration: float
     planner: dict = field(default_factory=dict)
     attacks: tuple = ()
+    cover_torque: bool = False
 
 
 def _number(value, what):
@@ -35,11 +30,46 @@ def _number(value, what):
     return float(value)
 
 
-# Check every field; times are seconds after the first trusted reference.
+def _joints(a, i):
+    if 'joint' in a and 'joints' in a:
+        raise ValueError(f'attack {i}: give joint or joints, not both')
+    joints = a.get('joints', [a.get('joint')] if 'joint' in a else None)
+    if not isinstance(joints, list) or not joints or any(
+            isinstance(j, bool) or not isinstance(j, int) or not 1 <= j <= 7 for j in joints):
+        raise ValueError(f'attack {i}: joint(s) must be integers from 1 to 7')
+    return tuple(j - 1 for j in joints)
+
+
+def _attack(a, i, seed, duration):
+    if not isinstance(a, dict):
+        raise ValueError(f'attack {i} must be a mapping')
+    unknown = set(a) - ATTACK_KEYS
+    if unknown:
+        raise ValueError(f'unknown keys in attack {i}: {sorted(unknown)}')
+    magnitudes = a.get('magnitudes') or ()
+    if not isinstance(magnitudes, (list, tuple)):
+        raise ValueError(f'attack {i}: magnitudes must be a list')
+    magnitude = a.get('magnitude')
+    if magnitude is None and not magnitudes:
+        if a.get('kind') not in ('freeze', 'replay', 'delay'):
+            raise ValueError(f'attack {i}: magnitude is required')
+        magnitude = 0.0
+    joints = _joints(a, i)
+    try:
+        attack = make_attack(a.get('id', i + 1), a.get('kind'), joints, magnitude,
+                             a.get('start'), a.get('duration'), a.get('frequency', 0.0),
+                             a.get('lag', 0.0), tuple(magnitudes), seed)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f'attack {i}: {e}') from None
+    if attack.end > duration:
+        raise ValueError(f'attack {i} must lie inside the scenario duration')
+    return attack
+
+
 def parse_scenario(data):
     if not isinstance(data, dict):
         raise ValueError('scenario must be a mapping')
-    unknown = set(data) - {'name', 'seed', 'friction_profile', 'duration', 'planner', 'attacks'}
+    unknown = set(data) - SCENARIO_KEYS
     if unknown:
         raise ValueError(f'unknown scenario keys: {sorted(unknown)}')
     name = data.get('name')
@@ -66,39 +96,19 @@ def parse_scenario(data):
     planner['payload_mass'] = _number(planner['payload_mass'], 'planner.payload_mass')
     if planner['payload_mass'] <= 0.0:
         raise ValueError('planner.payload_mass must be positive')
-    attacks = []
-    for i, a in enumerate(data.get('attacks') or []):
-        if not isinstance(a, dict):
-            raise ValueError(f'attack {i} must be a mapping')
-        unknown = set(a) - {'id', 'kind', 'joint', 'magnitude', 'start', 'duration'}
-        if unknown:
-            raise ValueError(f'unknown keys in attack {i}: {sorted(unknown)}')
-        kind = a.get('kind')
-        if kind not in KINDS:
-            raise ValueError(f'attack {i}: kind must be one of {KINDS}')
-        joint = a.get('joint')
-        if isinstance(joint, bool) or not isinstance(joint, int) or not 1 <= joint <= 7:
-            raise ValueError(f'attack {i}: joint must be an integer from 1 to 7')
-        start = _number(a.get('start'), f'attack {i}: start')
-        length = _number(a.get('duration'), f'attack {i}: duration')
-        if start < 0.0 or length <= 0.0 or start + length > duration:
-            raise ValueError(f'attack {i} must lie inside the scenario duration')
-        event_id = a.get('id', i + 1)
-        if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id < 1:
-            raise ValueError(f'attack {i}: id must be a positive integer')
-        attacks.append(Attack(event_id, kind, joint - 1,
-                              _number(a.get('magnitude'), f'attack {i}: magnitude'),
-                              start, length))
+    cover = data.get('cover_torque', False)
+    if not isinstance(cover, bool):
+        raise ValueError('cover_torque must be true or false')
+    attacks = [_attack(a, i, seed, duration) for i, a in enumerate(data.get('attacks') or [])]
     attacks.sort(key=lambda x: x.start)
     for first, second in zip(attacks, attacks[1:]):
         if second.start < first.end:
             raise ValueError(f'attacks {first.event_id} and {second.event_id} overlap')
     if len({a.event_id for a in attacks}) != len(attacks):
         raise ValueError('attack ids must be unique')
-    return Scenario(name, seed, profile, duration, planner, tuple(attacks))
+    return Scenario(name, seed, profile, duration, planner, tuple(attacks), cover)
 
 
-# Read and validate a scenario YAML file.
 def load_scenario(path):
     with open(path) as f:
         return parse_scenario(yaml.safe_load(f))
