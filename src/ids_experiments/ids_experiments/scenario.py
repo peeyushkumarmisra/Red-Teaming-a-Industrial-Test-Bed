@@ -9,12 +9,14 @@ from ids_attacks.library import make_attack
 FRICTION_PROFILES = ('none', 'nominal', 'wear', 'thesis')
 PLANNER_DEFAULTS = {'cycles': 0, 'payload_mass': 5.0}
 SCENARIO_KEYS = {'name', 'seed', 'friction_profile', 'duration', 'planner', 'attacks',
-                 'cover_torque', 'attacker', 'halt_on_alarm'}
+                 'cover_torque', 'attacker', 'halt_on_alarm', 'modbus_attacks'}
 ROLES = ('none', 'mitm', 'rogue', 'spoof')
 CREDENTIALS = ('stolen', 'none', 'forged')
 ATTACKER_KEYS = {'role', 'credentials'}
 ATTACK_KEYS = {'id', 'kind', 'joint', 'joints', 'magnitude', 'magnitudes', 'start', 'duration',
                'frequency', 'lag'}
+MODBUS_KINDS = ('payload_poison', 'modbus_freeze', 'modbus_replay')
+MODBUS_ATTACK_KEYS = {'id', 'kind', 'start', 'duration', 'value', 'period'}
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,7 @@ class Scenario:
     attacker_role: str = 'none'
     credentials: str = 'stolen'
     halt_on_alarm: bool = False
+    modbus_attacks: tuple = ()
 
 
 def _number(value, what):
@@ -71,6 +74,27 @@ def _attack(a, i, seed, duration):
     if attack.end > duration:
         raise ValueError(f'attack {i} must lie inside the scenario duration')
     return attack
+
+
+def _modbus_attack(a, i, duration):
+    if not isinstance(a, dict):
+        raise ValueError(f'modbus_attack {i} must be a mapping')
+    unknown = set(a) - MODBUS_ATTACK_KEYS
+    if unknown:
+        raise ValueError(f'unknown keys in modbus_attack {i}: {sorted(unknown)}')
+    kind = a.get('kind')
+    if kind not in MODBUS_KINDS:
+        raise ValueError(f'modbus_attack {i}: kind must be one of {MODBUS_KINDS}')
+    start = _number(a.get('start', 0.0), 'start')
+    length = _number(a.get('duration'), 'duration')
+    if start < 0.0 or length <= 0.0 or start + length > duration:
+        raise ValueError(f'modbus_attack {i} must lie inside the scenario duration')
+    spec = {'id': a.get('id', i + 1), 'kind': kind, 'start': start, 'duration': length}
+    if kind == 'payload_poison':
+        spec['value'] = int(a.get('value', 0))
+    if kind == 'modbus_replay':
+        spec['period'] = _number(a.get('period', 1.0), 'period')
+    return spec
 
 
 def _attacker(data, has_attacks, cover):
@@ -137,12 +161,14 @@ def parse_scenario(data):
             raise ValueError(f'attacks {first.event_id} and {second.event_id} overlap')
     if len({a.event_id for a in attacks}) != len(attacks):
         raise ValueError('attack ids must be unique')
-    role, credentials = _attacker(data, bool(attacks), cover)
+    modbus_attacks = [_modbus_attack(a, i, duration)
+                      for i, a in enumerate(data.get('modbus_attacks') or [])]
+    role, credentials = _attacker(data, bool(attacks) or bool(modbus_attacks), cover)
     halt = data.get('halt_on_alarm', False)
     if not isinstance(halt, bool):
         raise ValueError('halt_on_alarm must be true or false')
     return Scenario(name, seed, profile, duration, planner, tuple(attacks), cover, role,
-                    credentials, halt)
+                    credentials, halt, tuple(modbus_attacks))
 
 
 def load_scenario(path):

@@ -8,16 +8,13 @@
 #  server on Windows.
 # =============================================================================
 
-# Desktop image: includes Gazebo-related tools and RViz.
 FROM osrf/ros:jazzy-desktop
 
-# Non-root user, as in the IDS image.
 ARG USERNAME=dev
 ARG USER_UID=1000
 ARG USER_GID=1000
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Simulation, control and Python test dependencies.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       sudo build-essential cmake git \
       python3-pip python3-colcon-common-extensions python3-rosdep \
@@ -32,11 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ros-jazzy-rosbag2-storage-mcap \
     && rm -rf /var/lib/apt/lists/*
 
-# ikpy (inverse kinematics for the planner) is pinned so the IK seeds give the same poses
-# everywhere.
-RUN pip3 install --no-cache-dir --break-system-packages ikpy==4.5.0
+RUN pip3 install --no-cache-dir --break-system-packages ikpy==4.5.0 pymodbus==3.6.9
 
-# Create the dev user, give it sudo, and prepare /ws for the mounted workspace.
 RUN if id -u ubuntu >/dev/null 2>&1; then userdel -r ubuntu; fi \
     && groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd -m -s /bin/bash --uid ${USER_UID} --gid ${USER_GID} ${USERNAME} \
@@ -47,7 +41,6 @@ RUN if id -u ubuntu >/dev/null 2>&1; then userdel -r ubuntu; fi \
     && echo "source /opt/ros/jazzy/setup.bash" >> /home/${USERNAME}/.bashrc \
     && echo "[ -f /ws/install/setup.bash ] && source /ws/install/setup.bash" >> /home/${USERNAME}/.bashrc
 
-# Every command runs with ROS sourced (see entrypoint.sh).
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

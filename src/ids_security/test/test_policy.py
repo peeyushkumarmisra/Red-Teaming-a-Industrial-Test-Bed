@@ -26,6 +26,7 @@ NEEDS = [
     ('/cell/plc', PROBE, 'subscribe', '/probe/pong'),
     ('/cell/robot', CELL, 'subscribe', '/plc/reference'),
     ('/cell/robot', CELL, 'subscribe', '/robot/reference'),
+    ('/cell/robot', CELL, 'publish', '/robot/reference'),
     ('/cell/robot', CELL, 'publish', '/robot/measurement'),
     ('/cell/robot', CELL, 'publish', '/robot/measurement_raw'),
     ('/cell/robot', CELL, 'publish', '/clock'),
@@ -57,7 +58,6 @@ NEEDS = [
 
 REFUSED = [
     ('/cell/robot', CELL, 'publish', '/plc/reference'),
-    ('/cell/robot', CELL, 'publish', '/robot/reference'),
     ('/cell/robot', CELL, 'publish', '/attack/truth'),
     ('/cell/robot', MONITOR, 'publish', '/plc/reference'),
     ('/cell/robot', MONITOR, 'publish', '/ids/alarm'),
@@ -103,9 +103,10 @@ def test_rule_order_lets_the_robot_read_what_it_may_not_write(policy):
              for r in rules(policy, robot)]
     assert kinds[:3] == [('allow_rule', (10,), False, True), ('deny_rule', (10,), True, False),
                          ('allow_rule', (10,), True, False)]
-    for topic in ('/plc/reference', '/robot/reference', '/attack/truth'):
+    for topic in ('/plc/reference', '/attack/truth'):
         assert allowed(policy, robot, CELL, 'subscribe', topic)
         assert not allowed(policy, robot, CELL, 'publish', topic)
+    assert allowed(policy, robot, CELL, 'publish', '/robot/reference')
 
 
 def test_a_deny_rule_first_would_block_even_reading_the_topic():
@@ -158,3 +159,4 @@ def test_minimal_policy_round_trip(tmp_path):
         allowed(p, e, 10, 'relay', '/x')
     with pytest.raises(KeyError):
         p.enclave('/missing')
+        

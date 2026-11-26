@@ -18,7 +18,7 @@ enclaves:
     ca: cell
     domains:
       cell:
-        deny_publish: [/plc/reference, /robot/reference, /attack/truth]
+        deny_publish: [/plc/reference, /attack/truth]
         publish: ['*']
         subscribe: ['*']
       monitor:

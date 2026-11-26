@@ -9,21 +9,13 @@ x-sros2: &sros2
   ROS_SECURITY_STRATEGY: Enforce
 
 x-cell-and-monitor-dds: &cell-and-monitor-dds
-  CYCLONEDDS_URI: '<CycloneDDS><Domain Id="10"><General><Interfaces><NetworkInterface address="10.203.10.0"/></Interfaces></General></Domain><Domain Id="20"><General><Interfaces><NetworkInterface address="10.203.20.0"/></Interfaces></General></Domain><Domain Id="30"><General><Interfaces><NetworkInterface address="10.203.10.0"/></Interfaces></General></Domain><Domain Id="31"><General><Interfaces><NetworkInterface address="10.203.10.0"/></Interfaces></General></Domain></CycloneDDS>'
+  CYCLONEDDS_URI: '<CycloneDDS><Domain Id="10"><General><Interfaces><NetworkInterface address="10.203.10.0"/></Interfaces></General></Domain><Domain Id="20"><General><Interfaces><NetworkInterface address="10.203.20.0"/></Interfaces></General></Domain></CycloneDDS>'
 
 x-cell-dds: &cell-dds
   CYCLONEDDS_URI: '<CycloneDDS><Domain Id="any"><General><Interfaces><NetworkInterface address="10.203.10.0"/></Interfaces></General></Domain></CycloneDDS>'
 
 x-monitor-dds: &monitor-dds
   CYCLONEDDS_URI: '<CycloneDDS><Domain Id="any"><General><Interfaces><NetworkInterface address="10.203.20.0"/></Interfaces></General></Domain></CycloneDDS>'
-
-x-stub: &stub
-  image: ros:jazzy-ros-core
-  command: ["sleep", "infinity"]
-  init: true
-  profiles: ["planned"]
-  environment:
-    <<: *ros-env
 
 x-robot-image: &robot-image
   image: thesis/robot:dev
@@ -52,6 +44,7 @@ services:
       DISPLAY: host.docker.internal:0.0
       QT_X11_NO_MITSHM: "1"
       LIBGL_ALWAYS_SOFTWARE: "1"
+      PLC_HOST: "10.203.10.66"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -60,6 +53,7 @@ services:
       - robot_install:/ws/install
       - robot_log:/ws/log
       - ./data:/ws/data
+      - ./plc:/ws/plc:ro
       - ./keystore/enclaves/cell/robot:/keystore/enclaves/cell/robot:ro
     networks:
       control_net:
@@ -68,19 +62,15 @@ services:
         ipv4_address: 10.203.20.10
 
   plc:
-    <<: *robot-image
+    build:
+      context: .
+      dockerfile: docker/openplc.Dockerfile
+    image: thesis/openplc:dev
     container_name: thesis-plc
     hostname: plc
-    command: ["sleep", "infinity"]
-    environment:
-      <<: [*ros-env, *sros2, *cell-and-monitor-dds]
-      ROS_DOMAIN_ID: "10"
-      ROS_SECURITY_ENCLAVE_OVERRIDE: /cell/plc
+    init: true
     volumes:
-      - ./src:/ws/src:ro
-      - robot_install:/ws/install:ro
-      - ./data/cell:/ws/data/cell
-      - ./keystore/enclaves/cell/plc:/keystore/enclaves/cell/plc:ro
+      - ./plc:/opt/openplc/webserver/st_files/cell:ro
     networks:
       control_net:
         ipv4_address: 10.203.10.20
@@ -92,10 +82,14 @@ services:
     container_name: thesis-attacker
     hostname: attacker
     command: ["sleep", "infinity"]
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     environment:
       <<: [*ros-env, *sros2, *cell-dds]
       ROS_DOMAIN_ID: "10"
       ROS_SECURITY_ENCLAVE_OVERRIDE: /attacker/implant
+      PLC_HOST: "10.203.10.20"
     volumes:
       - ./src:/ws/src:ro
       - robot_install:/ws/install:ro
@@ -119,6 +113,7 @@ services:
       <<: [*ros-env, *sros2, *monitor-dds]
       ROS_DOMAIN_ID: "20"
       ROS_SECURITY_ENCLAVE_OVERRIDE: /monitor/ids
+      PLC_HOST: "10.203.20.20"
     volumes:
       - ./src:/ws/src
       - ids_build:/ws/build
@@ -143,26 +138,61 @@ services:
       - ./keystore:/keystore
 
   eng-ws:
-    <<: *stub
+    <<: *robot-image
     container_name: thesis-eng-ws
     hostname: eng-ws
+    command: ["sleep", "infinity"]
+    environment:
+      <<: *ros-env
+      PLC_WEB: "http://10.203.10.20:8080"
+    volumes:
+      - ./src:/ws/src:ro
+      - robot_install:/ws/install:ro
+      - ./plc:/ws/plc:ro
     networks:
-      - ops_net
+      ops_net:
+        ipv4_address: 10.203.30.90
+      control_net:
+        ipv4_address: 10.203.10.90
 
   hmi:
-    <<: *stub
+    <<: *robot-image
     container_name: thesis-hmi
     hostname: hmi
+    command: ["python3", "-m", "ot_bridge.hmi", "--plc-host", "10.203.10.20"]
+    environment:
+      <<: *ros-env
+      PYTHONPATH: /ws/src/ot_bridge
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./src:/ws/src:ro
     networks:
-      - ops_net
+      control_net:
+        ipv4_address: 10.203.10.80
 
   range:
-    <<: *stub
+    <<: *robot-image
     container_name: thesis-range
     hostname: range
+    command: ["sleep", "infinity"]
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      <<: [*ros-env, *sros2, *monitor-dds]
+      ROS_DOMAIN_ID: "20"
+      ROS_SECURITY_ENCLAVE_OVERRIDE: /monitor/ids
+    volumes:
+      - ./src:/ws/src:ro
+      - robot_install:/ws/install:ro
+      - ./data:/ws/data
+      - ./keystore/enclaves/monitor/ids:/keystore/enclaves/monitor/ids:ro
     networks:
-      - monitor_net
-      - ops_net
+      monitor_net:
+        ipv4_address: 10.203.20.90
+      ops_net:
+        ipv4_address: 10.203.30.91
 
 networks:
   control_net:
@@ -177,6 +207,9 @@ networks:
         - subnet: 10.203.20.0/24
   ops_net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.203.30.0/24
 
 volumes:
   robot_build:

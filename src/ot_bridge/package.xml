@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ot_bridge</name>
+  <version>2.0.0</version>
+  <description>OT network bridge: Modbus map, robot Modbus gateway and trajectory generator, IDS trajectory-generator replica, attacker Modbus proxy and attacks, HMI and range glue.</description>
+  <maintainer email="im.pkm29@gmail.com">Piyush Mishra</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>ids_interfaces</exec_depend>
+  <exec_depend>ids_experiments</exec_depend>
+  <exec_depend>ids_attacks</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
